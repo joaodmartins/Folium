@@ -1,0 +1,10 @@
+{
+  "title": "Folium",
+  "tagline": "Your personal digital library",
+  "defaultTheme": "light",
+  "chapterBreak": "h1",
+  "defaults": {
+    "author": "João Martins",
+    "language": "en"
+  }
+}

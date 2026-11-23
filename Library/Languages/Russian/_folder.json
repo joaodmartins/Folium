@@ -1,0 +1,9 @@
+{
+  "title": "Russian",
+  "description": "Russian lessons, from the alphabet onwards.",
+  "order": 1,
+  "defaults": {
+    "author": "João Martins",
+    "language": "en"
+  }
+}
