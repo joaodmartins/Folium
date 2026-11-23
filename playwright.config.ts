@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 5173;
+// `npm run e2e` tests the dev server; `npm run e2e:preview` tests the production build.
+const usePreview = process.env.E2E_TARGET === 'preview';
+const PORT = usePreview ? 4173 : 5173;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -13,8 +15,11 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npm run dev -- --port ${PORT} --strictPort`,
+    command: usePreview
+      ? `npm run build && npm run preview -- --port ${PORT} --strictPort`
+      : `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
   },
 });

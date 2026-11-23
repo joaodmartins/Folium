@@ -12,20 +12,22 @@ The project is intentionally simple: no backend, no database, no authentication,
 
 ## Current status
 
-**Phases 0 and 1 of the plan are done.** What exists today:
+**Phases 0, 1 and 2 of the plan are done.** What exists today:
 
 - Project tooling (Vite, TypeScript, Vitest, Playwright).
-- A static landing page with the Folium identity and placeholder cards.
+- A navigable library built from the manifest: home with the top-level categories, category pages at any depth (sub-categories and books, with breadcrumbs), a book page, and a "not found" page. Navigation uses hash routes, so it works on GitHub Pages and with the browser's back/forward buttons:
+  `#/`, `#/category/languages/russian`, `#/book/languages/russian/a1/alphabet` (the ids are the manifest ids).
+- Covers: a book/category `cover` image from `Library/` is shown when it exists, otherwise a generated cover.
 - A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): the app does not use the manifest yet, so there is no library view, category navigation, Markdown rendering, reader, pagination, math (KaTeX), syntax highlighting, theme switching or reading settings.
+What does **not** exist yet (planned for later phases): Markdown rendering and the reader (the book page shows a content placeholder), pagination, math (KaTeX), syntax highlighting, theme switching and reading settings.
 
 ## Technologies
 
 - [Vite](https://vite.dev/) and TypeScript (vanilla, no UI framework)
 - [Vitest](https://vitest.dev/) for unit tests
-- [Playwright](https://playwright.dev/) for end-to-end tests
+- [Playwright](https://playwright.dev/) for end-to-end tests, and [happy-dom](https://github.com/capricorn86/happy-dom) for DOM unit tests
 - npm
 - GitHub Pages as the future deployment target
 
@@ -41,7 +43,8 @@ npm run dev       # start the dev server (http://localhost:5173)
 npm run build     # type-check and build to dist/
 npm run preview   # serve the production build
 npm test          # unit tests (Vitest)
-npm run e2e       # end-to-end tests (Playwright)
+npm run e2e       # end-to-end tests (Playwright) against the dev server
+npm run e2e:preview  # the same tests against the production build
 npm run typecheck # TypeScript only
 ```
 
@@ -55,8 +58,11 @@ Library/                 Your content: categories are folders, books are .md fil
 folium.config.json       Global site configuration
 tools/vite-plugin-folium/  Vite plugin: discovers books and builds the manifest
 src/                     Application code
+  router.ts, library.ts  Hash routes and lookups over the manifest
+  app.ts, main.ts        Mounts the app and renders the current route
+  views/                 Library (home), category, book and not-found views
+  components/            Breadcrumbs, cards, covers
   styles/                CSS (design tokens, base styles)
-  views/                 Future views (library, reader)
   reader/                Future Markdown rendering and pagination
 tests/
   unit/                  Vitest tests
