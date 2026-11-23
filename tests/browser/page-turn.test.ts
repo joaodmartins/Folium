@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
   codeBlock,
+  denseCode,
   frames,
   mountBook,
   paragraphs,
@@ -77,7 +78,7 @@ describe('copies of the pages (what is drawn while a page turns)', () => {
   });
 
   it('refuses to copy a page of a block that is too long to copy cheaply', async () => {
-    const book = await open(codeBlock(900), { width: 700, height: 260 });
+    const book = await open(denseCode(400), { width: 700, height: 260 });
     const paper = { width: 340, height: 260, textLeft: 20, textTop: 16 };
     expect(book.paginator.pageCount).toBeGreaterThan(12);
     expect(renderFace(book.content, 3, book.paginator.pageSize, paper, 'x')).toBeNull();
@@ -293,7 +294,7 @@ describe('reduced motion and pages that cannot be copied', () => {
   });
 
   it('a page that cannot be copied (a huge block) is turned with the same quick fade, not left broken', async () => {
-    const book = await open(codeBlock(900), { width: 700, height: 260, turnDuration: 80 });
+    const book = await open(denseCode(400), { width: 700, height: 260, turnDuration: 80 });
     book.paginator.goTo(6);
     await frames(2);
     expect(book.turner.turn(1)).toBe(true);

@@ -4,6 +4,7 @@ import { renderReaderBar } from '../components/reader-bar';
 import { el } from '../dom';
 import { findAnchorTarget } from '../reader/anchors';
 import { createPageTurner, type PageTurner } from '../reader/flip/turner';
+import { markScrollableFormulas } from '../reader/scrollable-formulas';
 import { computeBookLayout, GUTTER, sameLayout, type BookLayout } from '../reader/layout';
 import { columnsPaginator } from '../reader/paginator/columns';
 import type { Paginator } from '../reader/paginator/types';
@@ -158,6 +159,7 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         pagesPerView: () => layout.pages,
         gap: GUTTER,
         animate: false, // the reader draws its own page turns
+        onLayout: () => markScrollableFormulas(result.element),
       });
       if (mine !== attempt) return created.destroy(); // the user moved on while we were measuring
       paginator = created;
@@ -236,6 +238,8 @@ function listenForArrowKeys(
     if (!book.isConnected || bar.indicator.editing) return;
     const target = event.target;
     if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    // A wide formula that has the focus scrolls with the arrow keys.
+    if (target instanceof HTMLElement && target.closest('.katex-display[tabindex]')) return;
     event.preventDefault();
     if (event.key === 'ArrowRight') nav.next();
     else nav.prev();

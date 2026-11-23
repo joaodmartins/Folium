@@ -875,6 +875,7 @@ h1:focus {
 }
 
 :is(.prose, .flip__copy) pre,
+:is(.prose, .flip__copy) .math--display,
 :is(.prose, .flip__copy) blockquote,
 :is(.prose, .flip__copy) figure,
 :is(.prose, .flip__copy) img,
@@ -1125,5 +1126,162 @@ h1:focus {
 
   :is(.prose, .flip__copy) h2 {
     font-size: 1.35rem;
+  }
+}
+
+
+/* ---------- Formulas ---------- */
+
+:is(.prose, .flip__copy) .katex {
+  font-size: 1.05em; /* KaTeX's own 1.21em looks too big next to book text */
+}
+
+/* A display formula is centred in its own block. If it is wider than the page it scrolls inside
+   itself (the page does not): the paginator makes it keyboard-focusable when that happens. */
+:is(.prose, .flip__copy) .katex-display {
+  margin: 0.9em 0;
+  padding-block: 0.25em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  break-inside: avoid;
+}
+
+:is(.prose, .flip__copy) .katex-display[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* An invalid formula stays readable as the TeX that was written, quietly marked. */
+:is(.prose, .flip__copy) .math--error {
+  color: var(--text-muted);
+  cursor: help;
+}
+
+:is(.prose, .flip__copy) .math--error code {
+  padding: 0;
+  font-size: 0.88em;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted #b3261e;
+}
+
+:is(.prose, .flip__copy) .math--display.math--error {
+  display: block;
+  margin: 0.9em 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Code: highlighting and the Copy button ---------- */
+
+:is(.prose, .flip__copy) pre {
+  position: relative;
+}
+
+:is(.prose, .flip__copy) .hljs-comment,
+:is(.prose, .flip__copy) .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+:is(.prose, .flip__copy) .hljs-keyword,
+:is(.prose, .flip__copy) .hljs-selector-tag,
+:is(.prose, .flip__copy) .hljs-name,
+:is(.prose, .flip__copy) .hljs-doctag,
+:is(.prose, .flip__copy) .hljs-meta .hljs-keyword {
+  color: var(--code-keyword);
+  font-weight: 600;
+}
+
+:is(.prose, .flip__copy) .hljs-string,
+:is(.prose, .flip__copy) .hljs-regexp,
+:is(.prose, .flip__copy) .hljs-addition,
+:is(.prose, .flip__copy) .hljs-meta .hljs-string {
+  color: var(--code-string);
+}
+
+:is(.prose, .flip__copy) .hljs-number,
+:is(.prose, .flip__copy) .hljs-literal,
+:is(.prose, .flip__copy) .hljs-symbol,
+:is(.prose, .flip__copy) .hljs-bullet {
+  color: var(--code-number);
+}
+
+:is(.prose, .flip__copy) .hljs-title,
+:is(.prose, .flip__copy) .hljs-section,
+:is(.prose, .flip__copy) .hljs-title.function_ {
+  color: var(--code-function);
+}
+
+:is(.prose, .flip__copy) .hljs-type,
+:is(.prose, .flip__copy) .hljs-built_in,
+:is(.prose, .flip__copy) .hljs-title.class_,
+:is(.prose, .flip__copy) .hljs-selector-class,
+:is(.prose, .flip__copy) .hljs-selector-id {
+  color: var(--code-type);
+}
+
+:is(.prose, .flip__copy) .hljs-attr,
+:is(.prose, .flip__copy) .hljs-attribute,
+:is(.prose, .flip__copy) .hljs-property,
+:is(.prose, .flip__copy) .hljs-variable,
+:is(.prose, .flip__copy) .hljs-template-variable,
+:is(.prose, .flip__copy) .hljs-params {
+  color: var(--code-attr);
+}
+
+:is(.prose, .flip__copy) .hljs-meta,
+:is(.prose, .flip__copy) .hljs-tag {
+  color: var(--code-meta);
+}
+
+:is(.prose, .flip__copy) .hljs-deletion {
+  color: #b3261e;
+}
+
+:is(.prose, .flip__copy) .hljs-emphasis {
+  font-style: italic;
+}
+
+:is(.prose, .flip__copy) .hljs-strong {
+  font-weight: 700;
+}
+
+/* Small and quiet: it shows when the block is hovered or focused (always, on touch screens). */
+.code-copy {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.45rem;
+  padding: 0.18rem 0.6rem;
+  font: 0.72rem/1.3 var(--font-ui);
+  color: var(--text-muted);
+  background: var(--page-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  user-select: none; /* never part of a selection that is copied */
+}
+
+pre:hover > .code-copy,
+.code-copy:focus-visible,
+.code-copy[data-state] {
+  opacity: 1;
+}
+
+.code-copy[data-state='done'] {
+  color: var(--code-string);
+  border-color: currentColor;
+}
+
+.code-copy[data-state='failed'] {
+  color: #b3261e;
+  border-color: currentColor;
+}
+
+@media (hover: none) {
+  .code-copy {
+    opacity: 0.8;
   }
 }

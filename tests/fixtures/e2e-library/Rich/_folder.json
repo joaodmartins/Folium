@@ -1,0 +1,5 @@
+{
+  "title": "Rich",
+  "description": "Books with mathematics and code, used by the tests.",
+  "defaults": { "language": "en" }
+}

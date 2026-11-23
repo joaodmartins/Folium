@@ -7,8 +7,14 @@ import type { Paginator } from '../paginator/types';
  * every line falls where it falls in the real book, and discarded when the animation ends.
  */
 
-/** A block that spans more pages than this is too big to copy for an animation (the turn is a plain fade). */
-const MAX_BLOCK_SPAN = 8;
+/**
+ * A block bigger than this is too heavy to copy for an animation (the turn is then a plain fade).
+ * Copying costs as much as laying the block out, which depends on how much is in it (elements and
+ * text), not on how many pages it covers.
+ */
+const MAX_BLOCK_ELEMENTS = 4000;
+const MAX_BLOCK_TEXT = 80_000;
+const tooBigToCopy = (block: Element) => block.querySelectorAll('*').length > MAX_BLOCK_ELEMENTS || (block.textContent?.length ?? 0) > MAX_BLOCK_TEXT;
 
 export type PageSize = Paginator['pageSize'];
 
@@ -43,10 +49,23 @@ function piecesOnPage(content: HTMLElement, page: number, size: PageSize): Piece
     const startPage = pageAt(first.left);
     const endPage = pageAt(boxes[boxes.length - 1].left);
     if (startPage > page || endPage < page) continue;
-    if (endPage - startPage > MAX_BLOCK_SPAN) return null;
+    if (tooBigToCopy(block)) return null;
     pieces.push({ block, startPage, startTop: first.top - base.top });
   }
   return pieces;
+}
+
+/**
+ * The copy starts at an exact distance from the top (the spacer), so the first block must not add its
+ * own top margin: neither its own, nor one of its first child that would collapse through it (a formula
+ * in a wrapper, for instance).
+ */
+function removeTopMargin(block: HTMLElement) {
+  for (let node: HTMLElement | null = block; node; node = node.firstElementChild as HTMLElement | null) {
+    node.style.marginTop = '0';
+    const display = node === block ? 'block' : getComputedStyle(node).display;
+    if (display !== 'block') break;
+  }
 }
 
 /** The text of one page, as a detached element laid out like the real page. `null` when it cannot be copied. */
@@ -72,7 +91,7 @@ export function copyPageText(content: HTMLElement, page: number, size: PageSize)
     strip.append(el('div', { style: `height:${Math.max(0, first.startTop)}px;margin:0;padding:0` }));
     pieces.forEach(({ block }, index) => {
       const copy = block.cloneNode(true) as HTMLElement;
-      if (index === 0) copy.style.marginTop = '0';
+      if (index === 0) removeTopMargin(copy);
       strip.append(copy);
     });
     style.transform = `translateX(${-(page - first.startPage) * (size.width + size.gap)}px)`;

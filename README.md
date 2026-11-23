@@ -22,12 +22,14 @@ The project is intentionally simple: no backend, no database, no authentication,
 - The open book: reading shows a slim bar (back, previous / page number / next, theme) and the book on a desk, using all the space. Wide screens show two pages side by side with a spine; narrow ones (phones, a tablet held upright) show one page. Pages turn with a 3D page-turn animation (a plain quick fade with `prefers-reduced-motion`). Pages are numbered individually (`1–2 / 500`, the last odd page alone); the current number is a button: click it, type a page, press Enter.
 - Pages are CSS columns (one column = one page): the browser breaks lines and pages, and Folium measures the result, waits for fonts and images, and keeps the reader at the same place in the text when the window is resized or the device is rotated. A heading link (`#/book/<id>#heading`, `#/read/<id>#heading`) opens the view that contains it.
 - Themes: Light, Dark and Sepia, chosen with three swatches in the reading bar and remembered in `localStorage`. They only change colours, never the layout.
+- Mathematics: `$E = mc^2$` inline and `$$ … $$` as a centred block, rendered by KaTeX (installed locally, nothing from a CDN). A formula wider than the page scrolls inside itself; an invalid formula is shown as the TeX that was written, and the book still opens. In a table cell, write `\|` for a pipe inside a formula.
+- Code: fenced blocks are syntax-highlighted by highlight.js (C, C++, Python, Java, JavaScript, TypeScript, HTML/XML, CSS, JSON, Bash/shell, SQL, YAML, Markdown; other languages, or none, are shown as plain text). Long lines wrap. A discreet "Copy" button copies the original code (not the highlighting).
 - Page breaks: `<!-- pagebreak -->` on its own line starts a new page; the book's `chapterBreak` (`h1`, `h2` or `none`, default `h1`) makes headings of that level (and above) start a new page.
 - Covers: a book/category `cover` image from `Library/` is shown when it exists, otherwise a generated cover.
 - A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): a table-of-contents UI, math (KaTeX), syntax highlighting, reading settings (font size, line height), and a saved reading position. The page number depends on the screen size and text size, so it is not the same on every device.
+What does **not** exist yet (planned for later phases): a table-of-contents UI, reading settings (font size, line height), and a saved reading position. The page number depends on the screen size and text size, so it is not the same on every device.
 
 ## Technologies
 
@@ -72,6 +74,7 @@ src/                     Application code
   reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, page breaks, source loader
   reader/layout.ts       Size of the open book (one page or two) for the space available
   reader/paginator/      The Paginator interface and its CSS-columns implementation
+  reader/math.ts, highlight.ts, code-blocks.ts   KaTeX formulas, syntax highlighting, the Copy button
   reader/flip/           The page-turn animation (copies of the pages involved, drawn on top of the book)
   styles/                CSS (design tokens, base styles)
 tests/

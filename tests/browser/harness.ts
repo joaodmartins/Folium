@@ -1,10 +1,12 @@
 import { vi } from 'vitest';
+import 'katex/dist/katex.min.css';
 import '../../src/styles/tokens.css';
 import '../../src/styles/app.css';
 import { renderBookFrame, type BookFrame } from '../../src/components/book-frame';
 import { renderReaderBar, type ReaderBar } from '../../src/components/reader-bar';
 import { createPageTurner, type PageTurner } from '../../src/reader/flip/turner';
 import { GUTTER, type BookLayout } from '../../src/reader/layout';
+import { markScrollableFormulas } from '../../src/reader/math';
 import { createColumnsPaginator, type ColumnsOptions } from '../../src/reader/paginator/columns';
 import type { Paginator } from '../../src/reader/paginator/types';
 import { renderMarkdown } from '../../src/reader/render';
@@ -47,6 +49,8 @@ export interface MountOptions extends ColumnsOptions {
   turnDuration?: number;
   reducedMotion?: boolean;
   chapterBreak?: ChapterBreak;
+  /** Title of the book (a first H1 with the same text is hidden). */
+  title?: string;
 }
 
 export const frames = (count = 4) =>
@@ -73,12 +77,12 @@ export function testLayout(width: number, height: number, pages: 1 | 2): BookLay
 
 /** Renders Markdown with the real pipeline and paginates it inside a stage of the given size. */
 export async function mountBook(markdown: string, options: MountOptions = {}): Promise<Mounted> {
-  const { width = 500, height = 420, pages = 1, chapterBreak = 'none', turnDuration, reducedMotion, ...paginatorOptions } = options;
+  const { width = 500, height = 420, pages = 1, chapterBreak = 'none', turnDuration, reducedMotion, title = 'Test book', ...paginatorOptions } = options;
   let currentPages: 1 | 2 = pages;
   let currentLayout = testLayout(width, height, pages);
 
   const { element: content } = renderMarkdown(markdown, {
-    title: 'Test book',
+    title,
     bookId: 'test',
     bookPath: 'Test/Book.md',
     findBookByPath: () => undefined,
@@ -98,6 +102,7 @@ export async function mountBook(markdown: string, options: MountOptions = {}): P
     animate: false,
     gap: GUTTER,
     pagesPerView: () => currentPages,
+    onLayout: () => markScrollableFormulas(content), // like the reader: wide formulas become focusable
     ...paginatorOptions,
   });
 
@@ -229,6 +234,10 @@ export const paragraphs = (count: number, words = 40, from = 1) =>
 export const codeBlock = (lines: number, prefix = 'line') =>
   '```c\n' + range(lines).map((i) => `${prefix} ${i + 1}: int value_${i} = compute(${i}); /* comment */`).join('\n') + '\n```';
 
+/** Code with many tokens per line (every number is its own element once highlighted): heavy to copy. */
+export const denseCode = (lines: number) =>
+  '```python\n' + range(lines).map((i) => `v${i} = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]  # note ${i}`).join('\n') + '\n```';
+
 /** A solid-colour PNG of the given size as an inline data URI, so no file is needed. */
 export function pngImage(width: number, height: number, alt = 'big image'): string {
   const canvas = document.createElement('canvas');
@@ -253,14 +262,18 @@ function wordBoxes(root: Element): { word: string; rect: DOMRect }[] {
   const out: { word: string; rect: DOMRect }[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-    if (node.parentElement?.closest('[hidden], script, style')) continue;
+    if (node.parentElement?.closest('[hidden], script, style, .katex-mathml')) continue; // (the MathML is not drawn)
     const re = /\S+/g;
     for (let match = re.exec(node.data); match; match = re.exec(node.data)) {
       const range = document.createRange();
       range.setStart(node, match.index);
       range.setEnd(node, match.index + match[0].length);
       const rect = range.getClientRects()[0];
-      if (rect && rect.width > 0) out.push({ word: match[0], rect });
+      if (!rect || rect.width === 0) continue;
+      // Text scrolled out of view inside a box (a wide formula) is not on the page.
+      const box = node.parentElement?.closest('.katex-display')?.getBoundingClientRect();
+      if (box && (rect.left >= box.right - 1 || rect.right <= box.left + 1)) continue;
+      out.push({ word: match[0], rect });
     }
   }
   return out;

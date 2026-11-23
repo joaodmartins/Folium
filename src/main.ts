@@ -2,6 +2,7 @@ import { manifest } from 'virtual:folium-library';
 import { mountApp } from './app';
 import { createLibrary } from './library';
 import { applyTheme, loadTheme } from './state/theme';
+import 'katex/dist/katex.min.css'; // formulas (its fonts are only downloaded when a book has formulas)
 import './styles/tokens.css';
 import './styles/app.css';
 

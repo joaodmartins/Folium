@@ -1,5 +1,6 @@
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
+import katexFonts from './tools/vite-plugin-katex-fonts.ts';
 
 export default defineConfig({
   test: {
@@ -14,6 +15,7 @@ export default defineConfig({
       {
         // Pagination relies on CSS multi-column layout and real measurements, which jsdom cannot
         // do: these tests run in Chromium (through Playwright).
+        plugins: [katexFonts()],
         test: {
           name: 'browser',
           include: ['tests/browser/**/*.test.ts'],

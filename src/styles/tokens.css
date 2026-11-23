@@ -19,6 +19,14 @@
   --page-edge: #e6dfd2;
   --cover-leather: #6f3a1f;
   --spine: 40 30 20;
+  --code-comment: #686b73;
+  --code-keyword: #a3274a;
+  --code-string: #15693f;
+  --code-number: #8a4a07;
+  --code-function: #5a3db0;
+  --code-type: #0a6770;
+  --code-attr: #8a4a07;
+  --code-meta: #6d4a91;
 }
 
 :root[data-theme='dark'] {
@@ -34,6 +42,14 @@
   --page-edge: #34323c;
   --cover-leather: #3a2417;
   --spine: 0 0 0;
+  --code-comment: #9aa1ac;
+  --code-keyword: #ff8fab;
+  --code-string: #8fd99a;
+  --code-number: #f2b676;
+  --code-function: #bba6ff;
+  --code-type: #6fd6dc;
+  --code-attr: #f2b676;
+  --code-meta: #cfa8ff;
 }
 
 :root[data-theme='sepia'] {
@@ -49,6 +65,14 @@
   --page-edge: #e3d2aa;
   --cover-leather: #4f3119;
   --spine: 67 52 34;
+  --code-comment: #6f6349;
+  --code-keyword: #9b2548;
+  --code-string: #2a6a34;
+  --code-number: #85470a;
+  --code-function: #553a9c;
+  --code-type: #1b6a74;
+  --code-attr: #85470a;
+  --code-meta: #664589;
 }
 
 :root {

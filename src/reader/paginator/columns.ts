@@ -178,6 +178,7 @@ export async function createColumnsPaginator(
     }
     clearTimeout(placeTimer);
     rememberPlace();
+    options.onLayout?.();
   }
 
   // ---- keeping up with changes ---------------------------------------------------------
@@ -234,8 +235,8 @@ export async function createColumnsPaginator(
 
   // ---- start: wait until the content has its final size --------------------------------
 
-  await nextFrame(); // lets the browser start loading the fonts the text uses
-  await Promise.all([document.fonts?.ready, ...pendingImages(content, options.imageTimeout ?? 4000)]);
+  await nextFrame();
+  await Promise.all([fontsLoaded(content), ...pendingImages(content, options.imageTimeout ?? 4000)]);
   measuredWidth = Math.floor(viewport.clientWidth);
   measuredHeight = Math.floor(viewport.clientHeight);
   measuredView = wantedView();
@@ -300,6 +301,22 @@ export async function createColumnsPaginator(
 /** Compile-time check that the factory type matches. */
 export const columnsPaginator: PaginatorFactory = (viewport, content, options) =>
   createColumnsPaginator(viewport, content, options);
+
+/**
+ * Resolves when the fonts the content needs are loaded (book text, KaTeX's math fonts…). A font only
+ * starts loading once text that uses it has been laid out, so the content is laid out first; if that
+ * starts more loads (one font leading to another), it waits again, a few times at most. Fonts that
+ * arrive later still trigger a new measurement (see the `loadingdone` listener).
+ */
+async function fontsLoaded(content: HTMLElement): Promise<void> {
+  const fonts = document.fonts;
+  if (!fonts) return;
+  for (let round = 0; round < 4; round++) {
+    content.getBoundingClientRect(); // forces the layout that makes the browser request the fonts
+    await fonts.ready;
+    if (fonts.status === 'loaded') return;
+  }
+}
 
 /** Promises for images that are not loaded yet (capped, so one slow image cannot block reading). */
 function pendingImages(root: HTMLElement, timeout: number): Promise<unknown>[] {

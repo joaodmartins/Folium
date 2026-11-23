@@ -25,3 +25,34 @@ export function sanitizeHtml(html: string): DocumentFragment {
   template.innerHTML = clean;
   return template.content;
 }
+
+/**
+ * KaTeX's output (rendered from the author's TeX, never from author HTML) is a different kind of
+ * HTML from the book's: spans with `style` lengths, SVG paths for big symbols, MathML. It has its
+ * own sanitizer, with those allowed and everything else (scripts, handlers, URLs…) still removed.
+ * Styles are only kept if they are plain CSS values (no `url()`, `expression()`, `@import`…).
+ */
+const mathPurify = DOMPurify(window);
+
+const UNSAFE_STYLE = /url\s*\(|expression|@import|javascript:|image-set|behavior|\\|\/\*/i;
+mathPurify.addHook('afterSanitizeAttributes', (node) => {
+  const style = node.getAttribute?.('style');
+  if (style && UNSAFE_STYLE.test(style)) node.removeAttribute('style');
+});
+
+const MATH_CONFIG: Config = {
+  USE_PROFILES: { html: true, svg: true, mathMl: true },
+  // `semantics` / `annotation` hold the TeX source inside the MathML (what screen readers can read out).
+  ADD_TAGS: ['semantics', 'annotation'],
+  ADD_ATTR: ['style', 'encoding'],
+  FORBID_TAGS: ['style', 'script', 'foreignObject'],
+  FORBID_ATTR: ['id', 'name'],
+  ALLOW_DATA_ATTR: false,
+};
+
+export function sanitizeMath(html: string): DocumentFragment {
+  const clean = mathPurify.sanitize(html, MATH_CONFIG);
+  const template = document.createElement('template');
+  template.innerHTML = clean;
+  return template.content;
+}

@@ -1,7 +1,10 @@
 import { splitFrontmatter } from '../../tools/vite-plugin-folium/split-frontmatter';
 import type { ChapterBreak } from '../../tools/vite-plugin-folium/types';
 import { assignHeadingIds, type Heading } from './headings';
+import { addCopyButtons, listenForCopyClicks } from './code-blocks';
+import { highlightPlugin } from './highlight';
 import { createMarkdown, type Markdown } from './markdown';
+import { mathPlugin, renderMath } from './math';
 import { pageBreakPlugin } from './pagebreak';
 import { applyPageBreaks } from './pages';
 import { resolveLinksAndImages, type ResolveContext } from './resolve';
@@ -25,10 +28,13 @@ let markdown: Markdown | undefined;
 
 /**
  * Markdown source (frontmatter included) → safe DOM.
- * markdown-it → sanitize → resolve relative links/images → heading ids → tidy-ups.
+ * markdown-it (page breaks, math markers, syntax highlighting) → sanitize → resolve relative
+ * links/images → heading ids → tidy-ups → formulas (KaTeX) and Copy buttons, which must come after
+ * sanitizing. Everything is synchronous: when this returns the content is complete and can be measured
+ * (the fonts KaTeX uses are awaited by the paginator, which measures once they are loaded).
  */
 export function renderMarkdown(source: string, ctx: RenderContext): RenderedBook {
-  markdown ??= createMarkdown([pageBreakPlugin]);
+  markdown ??= createMarkdown([pageBreakPlugin, mathPlugin, highlightPlugin]);
   const { body } = splitFrontmatter(source);
 
   const element = document.createElement('div');
@@ -39,6 +45,9 @@ export function renderMarkdown(source: string, ctx: RenderContext): RenderedBook
   const headings = assignHeadingIds(element);
   tidy(element, headings, ctx.title);
   applyPageBreaks(element, ctx.chapterBreak ?? 'none');
+  renderMath(element);
+  addCopyButtons(element);
+  listenForCopyClicks(element);
   return { element, headings };
 }
 

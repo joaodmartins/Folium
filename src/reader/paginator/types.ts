@@ -41,6 +41,8 @@ export interface PaginatorOptions {
   pagesPerView?: () => number;
   /** Space between two pages, in px. */
   gap?: number;
+  /** Called after every layout (first measurement, resize, content changes): for things that depend on the page size. */
+  onLayout?: () => void;
   /** Slide between pages (the reader draws its own page turns, so it turns this off). Default: true. */
   animate?: boolean;
 }
