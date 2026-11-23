@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLibrary } from '../../src/library';
-import { bookHash, categoryHash, hashFor, parseHash, resolveRoute, type Route } from '../../src/router';
+import { bookHash, categoryHash, hashFor, parseHash, readHash, resolveRoute, type Route } from '../../src/router';
 import { scanFixture } from './helpers';
 
 const library = createLibrary(scanFixture().manifest);
@@ -142,5 +142,38 @@ describe('heading anchors in book routes', () => {
 
   it('rejects malformed escapes in the anchor', () => {
     expect(parseHash('#/book/top-level#%E0%A4%A').name).toBe('not-found');
+  });
+});
+
+describe('the read route (the open book)', () => {
+  it('#/read/<id> is separate from the cover (#/book/<id>)', () => {
+    expect(parseHash('#/read/languages/russian/a1/alphabet')).toEqual({ name: 'read', id: 'languages/russian/a1/alphabet' });
+    expect(parseHash('#/book/languages/russian/a1/alphabet')).toEqual({ name: 'book', id: 'languages/russian/a1/alphabet' });
+  });
+
+  it('keeps a heading and round-trips', () => {
+    const route: Route = { name: 'read', id: 'top-level', anchor: 'Visão geral' };
+    expect(parseHash(hashFor(route))).toEqual(route);
+    expect(hashFor({ name: 'read', id: 'languages/russian/a1/alphabet' })).toBe('#/read/languages/russian/a1/alphabet');
+    expect(parseHash('#/read/top-level#section-2')).toEqual({ name: 'read', id: 'top-level', anchor: 'section-2' });
+  });
+
+  it('builds links from books', () => {
+    const book = library.getBook('languages/russian/a1/alphabet')!;
+    expect(readHash(book)).toBe('#/read/languages/russian/a1/alphabet');
+    expect(readHash(book, 'study tips')).toBe('#/read/languages/russian/a1/alphabet#study%20tips');
+    expect(bookHash(book)).toBe('#/book/languages/russian/a1/alphabet');
+  });
+
+  it('resolves against the library, and unknown books are not found', () => {
+    expect(resolveRoute({ name: 'read', id: 'top-level' }, library)).toMatchObject({ name: 'read', book: { id: 'top-level' } });
+    expect(resolveRoute({ name: 'read', id: 'top-level', anchor: 'x' }, library)).toMatchObject({ name: 'read', anchor: 'x' });
+    expect(resolveRoute({ name: 'read', id: 'nope' }, library)).toEqual({ name: 'not-found', hash: '#/read/nope' });
+    expect(resolveRoute({ name: 'read', id: 'languages/russian/a1/secret' }, library).name).toBe('not-found'); // draft
+  });
+
+  it('has no read route without a book id', () => {
+    expect(parseHash('#/read').name).toBe('not-found');
+    expect(parseHash('#/read/').name).toBe('not-found');
   });
 });

@@ -50,6 +50,10 @@ function tidy(root: HTMLElement, headings: Heading[], bookTitle: string) {
     first.setAttribute('hidden', '');
   }
 
+  // The first thing in the book sits at the very top of the first page, like the top of any other page.
+  const firstVisible = [...root.children].find((child) => !child.hasAttribute('hidden'));
+  firstVisible?.classList.add('first-block');
+
   // Wide code blocks and tables scroll inside themselves; make them reachable by keyboard.
   for (const pre of root.querySelectorAll('pre')) pre.setAttribute('tabindex', '0');
   for (const table of root.querySelectorAll('table')) {

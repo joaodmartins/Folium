@@ -138,9 +138,9 @@ describe('navigation', () => {
 
   it('updates the page indicator and the buttons of the sheet', async () => {
     const book = await mountBook(paragraphs(40));
-    const indicator = book.stage.querySelector('[data-testid="page-indicator"]')!;
-    const prev = book.sheet.prevButton;
-    const next = book.sheet.nextButton;
+    const indicator = book.bar.indicator.root;
+    const prev = book.bar.prevButton;
+    const next = book.bar.nextButton;
     const count = book.paginator.pageCount;
 
     expect(indicator.textContent).toBe(`1 / ${count}`);
@@ -155,9 +155,9 @@ describe('navigation', () => {
 
   it('a one-page book has both buttons disabled', async () => {
     const book = await mountBook('short');
-    expect(book.sheet.prevButton.disabled).toBe(true);
-    expect(book.sheet.nextButton.disabled).toBe(true);
-    expect(book.stage.querySelector('[data-testid="page-indicator"]')?.textContent).toBe('1 / 1');
+    expect(book.bar.prevButton.disabled).toBe(true);
+    expect(book.bar.nextButton.disabled).toBe(true);
+    expect(book.bar.indicator.root.textContent).toBe('1 / 1');
   });
 
   it('stops reacting after destroy()', async () => {
@@ -446,7 +446,7 @@ describe('resizing', () => {
     const wide = book.paginator.pageCount;
     await book.resize(340, 500);
     expect(book.paginator.pageCount).toBeGreaterThan(wide);
-    expect(book.stage.querySelector('[data-testid="page-indicator"]')?.textContent).toBe(`1 / ${book.paginator.pageCount}`);
+    expect(book.bar.indicator.root.textContent).toBe(`1 / ${book.paginator.pageCount}`);
     await book.resize(600, 500);
     expect(book.paginator.pageCount).toBe(wide);
   });
@@ -472,8 +472,9 @@ describe('resizing', () => {
     await book.resize(640, 400); // portrait → landscape
     const landscape = [...book.content.querySelectorAll('p')].find((p) => p.textContent!.startsWith(reading))!;
     expect(visibleFragments(book, landscape).length).toBeGreaterThan(0);
+    const readingNow = topParagraph(book).textContent!.slice(0, 6); // (a round trip may end a page away from the start)
     await book.resize(400, 640); // and back
-    const portrait = [...book.content.querySelectorAll('p')].find((p) => p.textContent!.startsWith(reading))!;
+    const portrait = [...book.content.querySelectorAll('p')].find((p) => p.textContent!.startsWith(readingNow))!;
     expect(visibleFragments(book, portrait).length).toBeGreaterThan(0);
   });
 
@@ -481,7 +482,7 @@ describe('resizing', () => {
     // With animation on, the page is still sliding when the resize is processed.
     const book = await mountBook(paragraphs(60), { width: 640, height: 460, animate: true });
     expect(book.paginator.next()).toBe(true);
-    book.stage.style.width = '480px';
+    book.setSize(480, 460);
     await frames(6);
     expect(book.paginator.page).toBe(1);
     const onScreen = [...book.content.querySelectorAll('p')].filter((p) => visibleFragments(book, p).length > 0);
@@ -491,7 +492,7 @@ describe('resizing', () => {
 
   it('keeps the position when CSS changes the text size together with the size (media queries, rotation)', async () => {
     const style = document.createElement('style');
-    style.textContent = '.reader[data-compact] .prose { font-size: 0.8rem; line-height: 1.3 }';
+    style.textContent = '.reader-stage[data-compact] .prose { font-size: 0.8rem; line-height: 1.3 }';
     document.head.append(style);
     try {
       const book = await mountBook(paragraphs(100), { width: 640, height: 460 });
@@ -500,14 +501,14 @@ describe('resizing', () => {
       const reading = topParagraph(book).textContent!.slice(0, 6);
 
       book.stage.setAttribute('data-compact', ''); // text reflows immediately…
-      book.stage.style.width = '420px'; // …together with the new size
+      book.setSize(420, 460); // …together with the new size
       await frames(6);
       const same = [...book.content.querySelectorAll('p')].find((p) => p.textContent!.startsWith(reading))!;
       expect(visibleFragments(book, same).length).toBeGreaterThan(0);
 
       const readingNow = topParagraph(book).textContent!.slice(0, 6);
       book.stage.removeAttribute('data-compact');
-      book.stage.style.width = '640px';
+      book.setSize(640, 460);
       await frames(6);
       const back = [...book.content.querySelectorAll('p')].find((p) => p.textContent!.startsWith(readingNow))!;
       expect(visibleFragments(book, back).length).toBeGreaterThan(0);
@@ -544,7 +545,7 @@ describe('resizing', () => {
   it('a burst of resizes is handled and ends consistent', async () => {
     const book = await mountBook(paragraphs(60));
     for (const w of [300, 450, 350, 600, 380]) {
-      book.stage.style.width = `${w}px`;
+      book.setSize(w, 420);
       await frames(1);
     }
     await frames(5);

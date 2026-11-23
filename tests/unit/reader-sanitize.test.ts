@@ -98,7 +98,8 @@ describe('sanitization (XSS protection)', () => {
 
   it('drops data-* attributes written by the author', () => {
     const { element } = render('<p data-testid="book-content" data-x="1">x</p>');
-    expect(element.querySelector('p')?.attributes.length).toBe(0);
+    const attributes = [...element.querySelector('p')!.attributes].map((a) => a.name);
+    expect(attributes.filter((name) => name.startsWith('data-'))).toEqual([]); // (only Folium's own class may be there)
   });
 
   it('keeps safe formatting, safe links and https images', () => {

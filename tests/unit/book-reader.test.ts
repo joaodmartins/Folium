@@ -4,7 +4,7 @@ import { mountApp } from '../../src/app';
 import { createLibrary } from '../../src/library';
 import type { SourceLoader } from '../../src/reader/source';
 import { renderRoute } from '../../src/app';
-import { renderBookView } from '../../src/views/book-view';
+import { renderReaderView as renderBookView } from '../../src/views/reader-view';
 import { renderCategoryView } from '../../src/views/category-view';
 import { renderLibraryView } from '../../src/views/library-view';
 import type { Paginator, PaginatorFactory } from '../../src/reader/paginator/types';
@@ -32,6 +32,8 @@ function fakePaginator(log: string[], pageCount = 3): PaginatorFactory {
     const paginator: Paginator = {
       page: 0,
       pageCount,
+      pagesPerView: 1,
+      pageSize: { width: 0, height: 0, gap: 0 },
       goTo: (page) => void log.push(`goTo:${page}`),
       next: () => (log.push('next'), true),
       prev: () => (log.push('prev'), true),
@@ -162,7 +164,7 @@ describe('book content loading', () => {
 
   it('loads only the book that is opened', () => {
     const loadSource = vi.fn<SourceLoader>(() => new Promise(() => {}));
-    renderRoute('#/book/languages/russian/a1/alphabet', library, noAssets, loadSource);
+    renderRoute('#/read/languages/russian/a1/alphabet', library, noAssets, loadSource);
     expect(loadSource.mock.calls.map(([b]) => b.id)).toEqual(['languages/russian/a1/alphabet']);
   });
 });
@@ -193,11 +195,11 @@ describe('opening another book while one is loading', () => {
     ]);
     const loadSource: SourceLoader = (book: Book) => sources.get(book.id)!;
 
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource });
     expect(container.querySelector('h1')?.textContent).toBe('Russian Alphabet');
 
-    go('#/book/languages/russian/a1/lesson-1');
+    go('#/read/languages/russian/a1/lesson-1');
     expect(container.querySelector('h1')?.textContent).toBe('Lesson 1');
 
     fast.resolve('# Lesson 1\n\nSecond book text.');
@@ -213,7 +215,7 @@ describe('opening another book while one is loading', () => {
 
   it('does not show a book\'s content on the home page after leaving it', async () => {
     const slow = deferred();
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: () => slow.promise });
     go('#/');
     slow.resolve('# Russian Alphabet\n\nLate text.');
@@ -227,11 +229,11 @@ describe('opening another book while one is loading', () => {
     const withLoader = { ...alphabet, load: () => load(alphabet) };
     const lib = createLibrary({ ...scanFixture().manifest, books: scanFixture().manifest.books.map((b) => (b.id === alphabet.id ? withLoader : b)) });
 
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     unmount = mountApp(container, lib, { assetUrl: noAssets }); // default loader: book.load(), cached
     await vi.waitFor(() => expect(container.querySelector('.prose')).not.toBeNull());
     go('#/');
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     await vi.waitFor(() => expect(container.querySelector('.prose')).not.toBeNull());
     expect(load).toHaveBeenCalledTimes(1);
   });
@@ -256,7 +258,7 @@ describe('heading anchors', () => {
 
   it('opens a book at the page of the requested heading once its pages are ready', async () => {
     const log: string[] = [];
-    go('#/book/languages/russian/a1/alphabet#study-tips');
+    go('#/read/languages/russian/a1/alphabet#study-tips');
     unmount = mountApp(container, library, {
       assetUrl: noAssets,
       loadSource: async () => ALPHABET_MD,
@@ -270,27 +272,27 @@ describe('heading anchors', () => {
   it('moves between headings of the open book without re-rendering it', async () => {
     const log: string[] = [];
     const loadSource = vi.fn<SourceLoader>(async () => ALPHABET_MD);
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource, createPaginator: fakePaginator(log) });
     await vi.waitFor(() => expect(container.querySelector('[aria-busy="false"] .prose')).not.toBeNull());
     const prose = container.querySelector('.prose');
     await new Promise((r) => setTimeout(r, 20)); // let jsdom's own hashchange settle
     log.length = 0;
 
-    go('#/book/languages/russian/a1/alphabet#overview');
-    go('#/book/languages/russian/a1/alphabet#study-tips');
+    go('#/read/languages/russian/a1/alphabet#overview');
+    go('#/read/languages/russian/a1/alphabet#study-tips');
     expect(log.filter((entry) => entry.startsWith('element:'))).toEqual(['element:overview', 'element:study-tips']);
     expect(container.querySelector('.prose')).toBe(prose); // same DOM: not rebuilt
     expect(loadSource).toHaveBeenCalledTimes(1);
 
     log.length = 0;
-    go('#/book/languages/russian/a1/alphabet'); // anchor removed → back to the first page
+    go('#/read/languages/russian/a1/alphabet'); // anchor removed → back to the first page
     expect(log).toContain('goTo:0');
     expect(container.querySelector('.prose')).toBe(prose);
   });
 
   it('keeps working for in-book links ("#heading") written in the Markdown', async () => {
-    go('#/book/languages/russian/a1/alphabet');
+    go('#/read/languages/russian/a1/alphabet');
     unmount = mountApp(container, library, {
       assetUrl: noAssets,
       loadSource: async () => '## One\n\n[to two](#two)\n\n## Two\n',
@@ -322,9 +324,11 @@ describe('pagination controls', () => {
           return page;
         },
         pageCount,
-        goTo: (p) => void go(p),
-        next: () => (log.push('next'), go(page + 1)),
-        prev: () => (log.push('prev'), go(page - 1)),
+        pagesPerView: 1,
+        pageSize: { width: 0, height: 0, gap: 0 },
+        goTo: (p) => (log.push(`goTo:${p}`), void go(p)),
+        next: () => go(page + 1),
+        prev: () => go(page - 1),
         pageOf: () => 0,
         goToElement: () => {},
         refresh: () => {},
@@ -341,7 +345,7 @@ describe('pagination controls', () => {
     target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init }));
 
   async function openBook(log: string[], source = ALPHABET_MD) {
-    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    window.location.hash = '#/read/languages/russian/a1/alphabet';
     unmount = mountApp(container, library, {
       assetUrl: noAssets,
       loadSource: async () => source,
@@ -365,7 +369,7 @@ describe('pagination controls', () => {
     expect(container.querySelector('.book')).not.toBeNull();
     expect(container.querySelector('.book__clip > .prose')).not.toBeNull();
     expect(indicator()).toBe('1 / 4');
-    expect(container.querySelector('[data-testid="page-indicator"]')?.getAttribute('aria-label')).toBe('Page 1 of 4');
+    expect(container.querySelector('.pager__current')?.getAttribute('aria-label')).toContain('Page 1 of 4');
     expect(button('prev').disabled).toBe(true); // nothing before the first page
     expect(button('next').disabled).toBe(false);
   });
@@ -373,6 +377,7 @@ describe('pagination controls', () => {
   it('the buttons turn pages and the indicator and buttons follow', async () => {
     const log: string[] = [];
     await openBook(log);
+    log.length = 0; // (opening the book goes to its first page)
     button('next').click();
     button('next').click();
     expect(indicator()).toBe('3 / 4');
@@ -382,8 +387,7 @@ describe('pagination controls', () => {
     expect(button('next').disabled).toBe(true); // last page
     button('prev').click();
     expect(indicator()).toBe('3 / 4');
-    expect(log.filter((l) => l === 'next')).toHaveLength(3);
-    expect(log.filter((l) => l === 'prev')).toHaveLength(1);
+    expect(log.filter((l) => l.startsWith('goTo:'))).toEqual(['goTo:1', 'goTo:2', 'goTo:3', 'goTo:2']);
   });
 
   it('the left and right arrow keys turn pages', async () => {
@@ -403,6 +407,7 @@ describe('pagination controls', () => {
   it('arrow keys are left alone with modifiers, while typing, or for other keys', async () => {
     const log: string[] = [];
     await openBook(log);
+    log.length = 0;
     key('ArrowRight', { ctrlKey: true });
     key('ArrowRight', { altKey: true });
     key('ArrowRight', { shiftKey: true });
@@ -442,7 +447,7 @@ describe('pagination controls', () => {
       await new Promise<void>((resolve) => (release = resolve));
       return statefulPaginator(log)(...args);
     };
-    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    window.location.hash = '#/read/languages/russian/a1/alphabet';
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => ALPHABET_MD, createPaginator: slow });
     await vi.waitFor(() => expect(typeof release).toBe('function'));
     window.location.hash = '#/';
@@ -453,7 +458,7 @@ describe('pagination controls', () => {
   });
 
   it('shows an error if the book cannot be paginated', async () => {
-    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    window.location.hash = '#/read/languages/russian/a1/alphabet';
     unmount = mountApp(container, library, {
       assetUrl: noAssets,
       loadSource: async () => ALPHABET_MD,
@@ -468,13 +473,13 @@ describe('pagination controls', () => {
   it('applies the book\'s chapterBreak to the rendered pages', async () => {
     const twoChapters = '## One\n\ntext\n\n## Two\n\ntext\n\n<!-- pagebreak -->\n\n## Three';
     // "Lesson 1" inherits chapterBreak "h2" from the fixture config; "Alphabet" sets "none".
-    window.location.hash = '#/book/languages/russian/a1/lesson-1';
+    window.location.hash = '#/read/languages/russian/a1/lesson-1';
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => twoChapters, createPaginator: statefulPaginator([]) });
     await vi.waitFor(() => expect(indicator()).toBeTruthy());
     expect([...container.querySelectorAll('.page-start')].map((e) => e.textContent)).toEqual(['Two', 'Three']);
     unmount();
 
-    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    window.location.hash = '#/read/languages/russian/a1/alphabet';
     unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => twoChapters, createPaginator: statefulPaginator([]) });
     await vi.waitFor(() => expect(indicator()).toBeTruthy());
     expect([...container.querySelectorAll('.page-start')].map((e) => e.textContent)).toEqual(['Three']); // only the manual break

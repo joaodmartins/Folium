@@ -243,151 +243,546 @@ h1:focus {
   font-weight: 700;
 }
 
-/* ---------- Book page ---------- */
+/* ---------- Cover page of a book ---------- */
 
-/* The book page fills the screen and never scrolls as a whole: the book turns pages instead. */
-.page--book {
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cover-view {
+  display: flex;
+  flex-direction: column;
+  max-width: 72rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.cover-view__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+.cover-view__nav .breadcrumbs__list {
+  margin: 0;
+}
+
+.cover-view__stage {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 21rem) minmax(0, 30rem);
+  gap: clamp(2rem, 7vw, 6rem);
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 0 3rem;
+}
+
+.cover-view__book {
+  display: flex;
+  justify-content: center;
+  perspective: 1600px;
+}
+
+.cover-view__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.cover-view__category {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.cover-view__category:hover {
+  text-decoration: underline;
+}
+
+.cover-view__title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+
+.cover-view__author {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.cover-view__description {
+  margin: 0.4rem 0 0;
+  max-width: 34rem;
+}
+
+.cover-view__actions {
+  margin-top: 1.2rem;
+}
+
+.button--large {
+  margin-top: 0;
+  padding: 0.85rem 1.9rem;
+  font-size: 1.05rem;
+}
+
+.button:hover {
+  filter: brightness(1.08);
+}
+
+/* The cover: a hard-cover book seen slightly from the side. */
+.book-cover {
+  position: relative;
+  width: min(100%, 20rem);
+  aspect-ratio: 2 / 3;
+  transform: rotateY(-16deg) rotateX(2deg);
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+  filter: drop-shadow(0 26px 24px rgb(var(--spine) / 0.35)) drop-shadow(0 4px 6px rgb(var(--spine) / 0.3));
+}
+
+.book-cover:hover {
+  transform: rotateY(-8deg) rotateX(1deg);
+}
+
+.is-opening .book-cover {
+  transform: rotateY(0deg) rotateX(0deg);
+}
+
+/* The pages seen from the side, and the board of the cover in front of them. */
+.book-cover__pages {
+  position: absolute;
+  inset: 1.5% -3.2% 1.5% 2%;
+  border-radius: 2px 6px 6px 2px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 3px, rgb(var(--spine) / 0.1) 3px 4px),
+    var(--page-bg);
+  transform: translateZ(-6px);
+}
+
+.book-cover__board {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 3px 9px 9px 3px;
+  transform-origin: left center;
+  background: var(--cover-leather);
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.book-cover__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.book-cover__hinge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 7%;
+  background: linear-gradient(90deg, rgb(0 0 0 / 0.35), rgb(255 255 255 / 0.12) 55%, rgb(0 0 0 / 0.2));
+  pointer-events: none;
+}
+
+.book-cover--printed .book-cover__board {
+  background: linear-gradient(155deg, hsl(var(--cover-hue) 42% 34%), hsl(calc(var(--cover-hue) + 28) 48% 21%));
+  color: #f6ecd6;
+}
+
+.book-cover__print {
+  position: absolute;
+  inset: 7% 8% 7% 13%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 9%;
+  text-align: center;
+  border: 1px solid rgb(246 236 214 / 0.4);
+  outline: 1px solid rgb(246 236 214 / 0.18);
+  outline-offset: 4px;
+}
+
+.book-cover__title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.35rem, 1.2rem + 1.5vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.book-cover__author {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.book-cover__rule {
+  width: 38%;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+/* ---------- The open book ---------- */
+
+/* Reading takes the whole screen: a slim bar, and the book on its desk. */
+.reader-page {
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
-  min-height: 30rem;
-  max-width: 50rem;
-  padding-bottom: 0.75rem;
+  overflow: hidden;
+  background: var(--desk);
+  color: var(--text);
 }
 
-.book-header {
+.reader-bar {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.75rem;
+  min-height: 3.1rem;
+}
+
+.bar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  color: inherit;
+  font-size: 0.92rem;
+  text-decoration: none;
+  border-radius: 999px;
+}
+
+.bar-link:hover,
+.bar-button:hover:not(:disabled) {
+  background: rgb(var(--spine) / 0.12);
+}
+
+.pager-group {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin: 0.75rem 0 1rem;
+  gap: 0.15rem;
 }
 
-.book-header .cover {
-  flex: none;
+.bar-button {
   width: 2.75rem;
-  aspect-ratio: 3 / 4;
+  height: 2.75rem;
+  padding: 0;
+  font: inherit;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.bar-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pager {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 6.5rem;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.pager__current {
+  padding: 0.12rem 0.4rem;
+  font: inherit;
+  color: inherit;
+  background: rgb(var(--spine) / 0.08); /* a small pill: the number can be edited */
+  border: 0;
+  border-radius: 6px;
+  cursor: text;
+}
+
+.pager__current:hover {
+  background: rgb(var(--spine) / 0.18);
+}
+
+.pager__range {
+  margin-left: 0.1rem;
+}
+
+.pager__input {
+  width: 4.4ch;
+  padding: 0.15rem 0.3rem;
+  font: inherit;
+  text-align: center;
+  color: var(--text);
+  background: var(--page-bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+}
+
+.pager__input[aria-invalid='true'] {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgb(192 57 43 / 0.25);
+}
+
+.pager__error {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  z-index: 10;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  color: #b3261e;
+  white-space: nowrap;
+  background: var(--page-bg);
+  border: 1px solid rgb(179 38 30 / 0.4);
   border-radius: 6px;
   box-shadow: var(--shadow);
-  font-size: 1.25rem;
+  transform: translateX(-50%);
 }
 
-.book-header__text {
-  min-width: 0;
+.swatches {
+  display: flex;
+  justify-self: end;
 }
 
-.book-header .page__title {
-  font-size: clamp(1.3rem, 3vw, 1.75rem);
+.swatch {
+  width: 2.25rem;
+  height: 2.75rem;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
-.book-header .page__lead {
-  font-size: 1rem;
-  margin-top: 0.1rem;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.swatch::before {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: auto;
+  content: '';
+  border: 2px solid currentColor;
+  border-radius: 50%;
 }
 
-.details {
-  margin: 0.3rem 0 0;
-  font-size: 0.85rem;
+.swatch--light::before {
+  background: #fffdf9;
 }
 
-.details dt,
-.details dd {
-  display: inline;
+.swatch--dark::before {
+  background: #24232a;
 }
 
-.details dt {
+.swatch--sepia::before {
+  background: #f1e1bb;
+}
+
+.swatch[aria-pressed='true']::before {
+  box-shadow: 0 0 0 3px var(--desk), 0 0 0 5px var(--accent);
+}
+
+/* The desk. The book is centred on it and sized by the reader (see layout.ts). */
+.reader-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  isolation: isolate;
+}
+
+.reader-stage .reader__status {
   color: var(--text-muted);
 }
 
-.details dt::after {
-  content: ':';
-}
-
-.details dd {
-  margin: 0 1rem 0 0.2rem;
-}
-
-.details dd:last-child {
-  margin-right: 0; /* a trailing margin would stick out of a full line */
-}
-
-/* ---------- The book: one page at a time ---------- */
-
 .book {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  max-width: 46rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 5px;
+  background: var(--page-bg);
+  box-shadow:
+    0 1px 0 var(--page-edge),
+    0 2px 0 var(--page-edge),
+    0 3px 0 rgb(var(--spine) / 0.18);
 }
 
-.book__window {
-  flex: 1;
-  min-height: 0;
-  padding: clamp(1.25rem, 4vh, 2.5rem) clamp(1.25rem, 6vw, 3rem) 0.5rem;
+/* The hard cover around the pages, and the book's shadow on the desk. */
+.book::before {
+  position: absolute;
+  inset: -6px -7px -9px;
+  z-index: -1;
+  content: '';
+  background: var(--cover-leather);
+  border-radius: 9px;
+  box-shadow:
+    0 22px 38px -6px rgb(var(--spine) / 0.5),
+    0 5px 12px rgb(var(--spine) / 0.3);
 }
 
-/* One page: its size is what the paginator reads, and what clips the neighbouring pages. */
+.book__paper {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.book[data-pages='2'] .book__paper {
+  box-shadow:
+    inset 3px 0 0 var(--page-edge),
+    inset -3px 0 0 var(--page-edge);
+}
+
+/* The window onto the text columns. Its margins are the page margins. */
 .book__clip {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: var(--my);
+  right: var(--mx);
+  bottom: var(--my);
+  left: var(--mx);
   overflow: hidden;
 }
 
-/* The paginator sets width, height and the columns; this is the look of the page content. */
 .book__pages {
   margin: 0;
   will-change: transform;
 }
 
-.book__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
+/* The fold: shading along the spine of the open book, and the left edge of a single page. */
+.book__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 6;
+  width: calc(var(--gutter) * 1.5);
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--spine) / 0),
+    rgb(var(--spine) / 0.06) 30%,
+    rgb(var(--spine) / 0.2) 48%,
+    rgb(var(--spine) / 0.26) 50%,
+    rgb(var(--spine) / 0.2) 52%,
+    rgb(var(--spine) / 0.06) 70%,
+    rgb(var(--spine) / 0)
+  );
+  transform: translateX(-50%);
 }
 
-.book__indicator {
-  min-width: 5rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+.book[data-pages='1'] .book__spine {
+  left: 0;
+  width: 1.5rem;
+  background: linear-gradient(90deg, rgb(var(--spine) / 0.16), rgb(var(--spine) / 0));
+  transform: none;
 }
 
-.book__nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem; /* comfortable touch target */
-  padding: 0 0.9rem;
-  justify-content: center;
-  font: inherit;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
+/* ---------- Turning pages ---------- */
+
+/* A layer on top of the book while a page turns: copies of the pages involved (see reader/flip). */
+.book__flip {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  perspective: calc(var(--page-w) * 7); /* far away: the turning page grows little as it lifts */
 }
 
-.book__nav:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
+.flip__still,
+.flip__leaf {
+  position: absolute;
+  top: 0;
 }
 
-.book__nav:disabled {
-  opacity: 0.35;
-  cursor: default;
+.flip__leaf {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.flip__face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  background: var(--page-bg);
+  backface-visibility: hidden;
+}
+
+.flip__face--back {
+  transform: rotateY(180deg);
+}
+
+.flip__window {
+  position: absolute;
+  overflow: hidden;
+}
+
+.flip__shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--spine) / 0.45),
+    rgb(var(--spine) / 0.06) 32%,
+    rgb(var(--spine) / 0.06) 68%,
+    rgb(var(--spine) / 0.22)
+  );
+}
+
+.flip__leaf .flip__face {
+  box-shadow: 0 0 26px rgb(var(--spine) / 0.28);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .book--entering {
+    animation: book-enter 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  /* Only a slide and a fade (no scale): measuring page positions while it runs must stay exact. */
+  @keyframes book-enter {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /* ---------- Misc ---------- */
@@ -412,59 +807,48 @@ h1:focus {
   font-weight: 600;
 }
 
-@media (max-width: 36rem) {
-  .page--book {
-    padding-inline: 0.5rem;
+@media (max-width: 48rem) {
+  .cover-view__stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+    justify-items: center;
+    padding-top: 0.5rem;
   }
 
-  .page--book .breadcrumbs {
-    padding-inline: 0.5rem;
+  .book-cover {
+    width: min(64vw, 15rem);
   }
 
-  .book-header {
-    margin: 0.5rem 0.5rem 0.75rem;
-  }
-
-  .book-header .page__lead {
-    display: none;
-  }
-
-  .book {
-    border-radius: 10px;
-  }
-
-  .book__nav-label {
-    display: none;
+  .cover-view__info {
+    align-items: center;
+    text-align: center;
   }
 }
 
-/* Short screens (a phone held sideways): the book gets all the height; the title stays in the breadcrumbs. */
-@media (max-height: 34rem) {
-  .page--book {
-    min-height: 0;
-    padding-top: 0.5rem;
-    padding-bottom: 0.4rem;
+@media (max-width: 36rem) {
+  .bar-link__label {
+    display: none;
   }
 
-  .page--book .book-header {
-    position: absolute; /* hidden visually, still there for screen readers */
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+  .reader-bar {
+    gap: 0.1rem;
+    padding-inline: 0.25rem;
   }
 
-  .book__window {
-    padding-top: 0.9rem;
+  .pager {
+    min-width: 5.2rem;
   }
 
-  .book__footer {
-    padding-block: 0.25rem 0.4rem;
+  .swatch {
+    width: 2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .book-cover {
+    transition: none;
+  }
+
   .card {
     transition: none;
   }
@@ -476,40 +860,37 @@ h1:focus {
  * Page-breaking rules. In a paginated book every column is a page, so these decide where
  * pages may end. They are preferences: an element taller than a page is still split.
  */
-.prose h1,
-.prose h2,
-.prose h3,
-.prose h4,
-.prose h5,
-.prose h6 {
+:is(.prose, .flip__copy) h1,
+:is(.prose, .flip__copy) h2,
+:is(.prose, .flip__copy) h3,
+:is(.prose, .flip__copy) h4,
+:is(.prose, .flip__copy) h5,
+:is(.prose, .flip__copy) h6 {
   break-after: avoid; /* a heading is never left alone at the bottom of a page */
 }
 
-.prose p {
+:is(.prose, .flip__copy) p {
   orphans: 2;
   widows: 2;
 }
 
-.prose pre,
-.prose blockquote,
-.prose figure,
-.prose img,
-.prose li,
-.prose tr {
+:is(.prose, .flip__copy) pre,
+:is(.prose, .flip__copy) blockquote,
+:is(.prose, .flip__copy) figure,
+:is(.prose, .flip__copy) img,
+:is(.prose, .flip__copy) li,
+:is(.prose, .flip__copy) tr {
   break-inside: avoid;
 }
 
-.prose .page-start {
+:is(.prose, .flip__copy) .page-start,
+:is(.prose, .flip__copy) .first-block {
   break-before: column; /* <!-- pagebreak --> and chapter headings */
   margin-top: 0; /* the top of a page has no extra space */
 }
 
-.reader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  min-height: 0;
+:is(.prose, .flip__copy) .first-block {
+  break-before: auto;
 }
 
 .reader__status,
@@ -543,7 +924,7 @@ h1:focus {
   font-weight: 600;
 }
 
-.prose {
+:is(.prose, .flip__copy) {
   font-family: var(--font-serif);
   font-size: 1.125rem;
   line-height: 1.75;
@@ -551,96 +932,96 @@ h1:focus {
   hyphens: auto;
 }
 
-.prose > :first-child {
+:is(.prose, .flip__copy) > :first-child {
   margin-top: 0;
 }
 
-.prose p,
-.prose ul,
-.prose ol,
-.prose blockquote,
-.prose pre,
-.prose .table-wrap,
-.prose figure {
+:is(.prose, .flip__copy) p,
+:is(.prose, .flip__copy) ul,
+:is(.prose, .flip__copy) ol,
+:is(.prose, .flip__copy) blockquote,
+:is(.prose, .flip__copy) pre,
+:is(.prose, .flip__copy) .table-wrap,
+:is(.prose, .flip__copy) figure {
   margin: 0 0 1.1em;
 }
 
-.prose h1,
-.prose h2,
-.prose h3,
-.prose h4,
-.prose h5,
-.prose h6 {
+:is(.prose, .flip__copy) h1,
+:is(.prose, .flip__copy) h2,
+:is(.prose, .flip__copy) h3,
+:is(.prose, .flip__copy) h4,
+:is(.prose, .flip__copy) h5,
+:is(.prose, .flip__copy) h6 {
   line-height: 1.25;
   margin: 1.8em 0 0.6em;
   scroll-margin-top: 1rem;
   text-wrap: balance;
 }
 
-.prose h1 {
+:is(.prose, .flip__copy) h1 {
   font-size: 2rem;
 }
 
-.prose h2 {
+:is(.prose, .flip__copy) h2 {
   font-size: 1.5rem;
   padding-bottom: 0.25em;
   border-bottom: 1px solid var(--border);
 }
 
-.prose h3 {
+:is(.prose, .flip__copy) h3 {
   font-size: 1.25rem;
 }
 
-.prose h4,
-.prose h5,
-.prose h6 {
+:is(.prose, .flip__copy) h4,
+:is(.prose, .flip__copy) h5,
+:is(.prose, .flip__copy) h6 {
   font-size: 1.05rem;
 }
 
-.prose h5,
-.prose h6 {
+:is(.prose, .flip__copy) h5,
+:is(.prose, .flip__copy) h6 {
   color: var(--text-muted);
 }
 
-.prose a {
+:is(.prose, .flip__copy) a {
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
 
-.prose ul,
-.prose ol {
+:is(.prose, .flip__copy) ul,
+:is(.prose, .flip__copy) ol {
   padding-left: 1.6em;
 }
 
-.prose li + li {
+:is(.prose, .flip__copy) li + li {
   margin-top: 0.3em;
 }
 
-.prose li > ul,
-.prose li > ol {
+:is(.prose, .flip__copy) li > ul,
+:is(.prose, .flip__copy) li > ol {
   margin: 0.3em 0 0;
 }
 
-.prose blockquote {
+:is(.prose, .flip__copy) blockquote {
   padding: 0.1em 1em;
   color: var(--text-muted);
   border-left: 3px solid var(--accent);
   font-style: italic;
 }
 
-.prose blockquote > :last-child {
+:is(.prose, .flip__copy) blockquote > :last-child {
   margin-bottom: 0;
 }
 
-.prose hr {
+:is(.prose, .flip__copy) hr {
   margin: 2.2em auto;
   width: 30%;
   border: 0;
   border-top: 1px solid var(--border);
 }
 
-.prose code,
-.prose kbd {
+:is(.prose, .flip__copy) code,
+:is(.prose, .flip__copy) kbd {
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 0.88em;
   padding: 0.12em 0.35em;
@@ -650,7 +1031,7 @@ h1:focus {
   hyphens: none;
 }
 
-.prose pre {
+:is(.prose, .flip__copy) pre {
   padding: 1rem 1.1rem;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -661,7 +1042,7 @@ h1:focus {
 }
 
 /* Pages do not scroll sideways: long lines wrap, so all of the code stays readable. */
-.prose pre code {
+:is(.prose, .flip__copy) pre code {
   padding: 0;
   font-size: inherit;
   background: none;
@@ -670,7 +1051,7 @@ h1:focus {
   overflow-wrap: anywhere;
 }
 
-.prose img {
+:is(.prose, .flip__copy) img {
   display: block;
   max-width: 100%;
   /* never taller than a page (--page-h is set by the paginator), so a big image is shown whole */
@@ -681,15 +1062,15 @@ h1:focus {
   border-radius: 6px;
 }
 
-.prose p > img:only-child {
+:is(.prose, .flip__copy) p > img:only-child {
   margin-block: 0.4em;
 }
 
-.prose .table-wrap {
+:is(.prose, .flip__copy) .table-wrap {
   overflow: visible;
 }
 
-.prose table {
+:is(.prose, .flip__copy) table {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-ui);
@@ -697,27 +1078,27 @@ h1:focus {
   line-height: 1.45;
 }
 
-.prose th,
-.prose td {
+:is(.prose, .flip__copy) th,
+:is(.prose, .flip__copy) td {
   padding: 0.5em 0.8em;
   text-align: left;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere; /* a wide table shrinks to the page instead of overflowing it */
 }
 
-.prose th {
+:is(.prose, .flip__copy) th {
   font-weight: 600;
   background: var(--surface);
   border-bottom: 2px solid var(--border);
 }
 
-.prose .missing-image,
-.prose .broken-link {
+:is(.prose, .flip__copy) .missing-image,
+:is(.prose, .flip__copy) .broken-link {
   color: var(--text-muted);
   font-size: 0.9em;
 }
 
-.prose .missing-image {
+:is(.prose, .flip__copy) .missing-image {
   display: block;
   margin: 1.2em 0;
   padding: 1rem;
@@ -727,22 +1108,22 @@ h1:focus {
   border-radius: 6px;
 }
 
-.prose .broken-link {
+:is(.prose, .flip__copy) .broken-link {
   text-decoration: line-through;
   cursor: help;
 }
 
 @media (max-width: 36rem) {
-  .prose {
+  :is(.prose, .flip__copy) {
     font-size: 1.05rem;
     line-height: 1.7;
   }
 
-  .prose h1 {
+  :is(.prose, .flip__copy) h1 {
     font-size: 1.7rem;
   }
 
-  .prose h2 {
+  :is(.prose, .flip__copy) h2 {
     font-size: 1.35rem;
   }
 }

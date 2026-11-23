@@ -1,7 +1,9 @@
 /*
  * Design tokens. Themes only change colours (never font metrics or spacing),
- * so switching theme will never require re-paginating a book.
- * Only the Light theme is active for now; Dark and Sepia are prepared for a later phase.
+ * so switching theme never requires re-paginating a book.
+ * `--desk` is the surface the open book lies on, `--page-bg` the paper of its pages,
+ * `--cover-leather` the colour of the book's cover edge, `--spine` (an "r g b" triplet)
+ * the shadow colour used at the book's spine and under turning pages.
  */
 :root,
 :root[data-theme='light'] {
@@ -12,6 +14,11 @@
   --border: #e4ded3;
   --accent: #b4532a;
   --shadow: 0 1px 2px rgb(40 30 20 / 0.06), 0 8px 24px rgb(40 30 20 / 0.08);
+  --desk: #d3cdc1;
+  --page-bg: #fffdf9;
+  --page-edge: #e6dfd2;
+  --cover-leather: #6f3a1f;
+  --spine: 40 30 20;
 }
 
 :root[data-theme='dark'] {
@@ -22,6 +29,11 @@
   --border: #302e36;
   --accent: #e08a5f;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+  --desk: #0c0c0f;
+  --page-bg: #24232a;
+  --page-edge: #34323c;
+  --cover-leather: #3a2417;
+  --spine: 0 0 0;
 }
 
 :root[data-theme='sepia'] {
@@ -32,6 +44,11 @@
   --border: #dccdaa;
   --accent: #9a4a22;
   --shadow: 0 1px 2px rgb(67 52 34 / 0.1), 0 8px 24px rgb(67 52 34 / 0.12);
+  --desk: #c9b88f;
+  --page-bg: #f5e9cd;
+  --page-edge: #e3d2aa;
+  --cover-leather: #4f3119;
+  --spine: 67 52 34;
 }
 
 :root {

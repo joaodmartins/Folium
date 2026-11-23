@@ -99,8 +99,8 @@ describe('CategoryView', () => {
   });
 });
 
-describe('BookView', () => {
-  it('shows breadcrumbs, title, author, description, category and a content placeholder', () => {
+describe('BookView (the cover page of a book)', () => {
+  it('shows breadcrumbs, title, author, description and category, and a button that starts reading', () => {
     const book = library.getBook('languages/russian/a1/alphabet')!;
     const { title, element } = renderBookView(context, book);
     expect(title).toBe('Russian Alphabet · Fixture Library');
@@ -113,25 +113,26 @@ describe('BookView', () => {
       'A1',
     ]);
     expect(text(element.querySelector('.breadcrumbs [aria-current="page"]'))).toBe('Russian Alphabet');
-    expect([...element.querySelectorAll('.details dt')].map((d) => text(d))).toEqual(['Author', 'Category', 'Language']);
-    expect(text(element.querySelector('.details dd'))).toBe('Frontmatter Author');
-    const category = element.querySelector('.details a');
+    expect(text(element.querySelector('.cover-view__author'))).toBe('by Frontmatter Author');
+    const category = element.querySelector('[data-testid="category-link"]');
     expect(text(category)).toBe('A1');
     expect(category?.getAttribute('href')).toBe('#/category/languages/russian/a1');
-    expect(element.querySelector('[data-testid="book-content"]')).not.toBeNull();
+    expect(element.querySelector('[data-testid="start-reading"]')?.getAttribute('href')).toBe('#/read/languages/russian/a1/alphabet');
+    expect(element.querySelector('[data-testid="book-content"]')).toBeNull(); // the text comes when you start reading
   });
 
   it('omits author and description when the book has none', () => {
     const book = { ...library.getBook('top-level')!, meta: { ...library.getBook('top-level')!.meta, author: undefined } };
     const { element } = renderBookView(context, book);
     expect(element.querySelector('.page__lead')).toBeNull();
-    expect([...element.querySelectorAll('.details dt')].map((d) => text(d))).toEqual(['Category', 'Language']);
+    expect(element.querySelector('.cover-view__author')).toBeNull();
   });
 
   it('never interprets titles as HTML', () => {
     const book = { ...library.getBook('top-level')!, title: '<img src=x onerror=alert(1)>' };
     const { element } = renderBookView(context, book);
     expect(element.querySelector('h1 img')).toBeNull();
+    expect(element.querySelector('.book-cover img')).toBeNull();
     expect(text(element.querySelector('h1'))).toBe('<img src=x onerror=alert(1)>');
   });
 });

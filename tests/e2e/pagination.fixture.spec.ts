@@ -1,10 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // Runs against tests/fixtures/e2e-library (see playwright.config.ts), not the real Library/.
+// These tests are about turning single pages, so they use a window that is too narrow for the
+// open book (two pages): see reader.fixture.spec.ts for the open book.
 // Books: Long Book (60 numbered paragraphs, 10 sections), Short Book (1 page), Manual Breaks (4 pages),
 // Chapters (chapterBreak h2: 4 pages), Hard Cases (tall/wide images, long code, wide table, long list…).
 
-const book = (name: string) => `/#/book/pagination/${name}`;
+test.use({ viewport: { width: 700, height: 760 } });
+
+const book = (name: string) => `/#/read/pagination/${name}`;
 const LONG = book('long-book');
 const SHORT = book('short-book');
 const BREAKS = book('manual-breaks');
@@ -38,12 +42,6 @@ const onScreen = (element: Locator) =>
 
 /** Waits until the page slide has finished (text no longer moving). */
 const settled = (page: Page) => page.waitForTimeout(300);
-
-/** True when at least one of the elements is on the visible page. */
-async function anyOnScreen(elements: Locator[]) {
-  for (const element of elements) if (await onScreen(element)) return true;
-  return false;
-}
 
 /** Labels ("P23", "Section 5") of the paragraphs and headings that are on the visible page. */
 const visibleLabels = (page: Page) =>
@@ -126,8 +124,8 @@ test.describe('a paginated book', () => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await openBook(page, LONG);
-    await page.getByRole('link', { name: 'Folium' }).first().click();
-    await expect(page.getByTestId('logo')).toBeVisible();
+    await page.getByTestId('back-link').click(); // back to the category
+    await expect(page.getByRole('heading', { level: 1, name: 'Pagination' })).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(indicator(page)).toHaveCount(0);
     expect(errors).toEqual([]);
@@ -179,7 +177,7 @@ test.describe('headings and anchors', () => {
     expect((await pageState(page)).current).toBeLessThan(late);
     expect(await sameBook()).toBe(true);
 
-    await page.evaluate(() => (location.hash = '#/book/pagination/long-book')); // no heading: back to the start
+    await page.evaluate(() => (location.hash = '#/read/pagination/long-book')); // no heading: back to the start
     await expect(indicator(page)).toHaveText(/^1 \//);
     expect(await sameBook()).toBe(true);
   });
@@ -245,26 +243,26 @@ test.describe('manual page breaks and chapters', () => {
 
 test.describe('resizing', () => {
   test('recalculates the number of pages and keeps the reading position', async ({ page }) => {
-    await page.setViewportSize({ width: 1100, height: 760 });
+    await page.setViewportSize({ width: 720, height: 760 });
     await openBook(page, LONG);
     const wide = await pageState(page);
 
     await page.goto(`${LONG}#section-6`);
     await expect.poll(() => onScreen(page.locator('.prose h2', { hasText: 'Section 6' }))).toBe(true);
     await settled(page);
-    const reading = paragraph(page, 31); // first paragraph of section 6
-    await expect.poll(() => onScreen(reading)).toBe(true);
+    const before = await visibleLabels(page);
+    expect(before.length).toBeGreaterThan(1);
 
-    await page.setViewportSize({ width: 560, height: 560 });
+    await page.setViewportSize({ width: 440, height: 560 });
     await expect.poll(async () => (await pageState(page)).total).toBeGreaterThan(wide.total);
-    await expect.poll(() => onScreen(reading)).toBe(true); // still reading the same place
+    // the reader is still where they were: the text at the top of the page is still on the page
+    await expect.poll(async () => (await visibleLabels(page)).includes(before[0])).toBe(true);
     expect((await pageState(page)).current).toBeGreaterThan(1);
 
-    await page.setViewportSize({ width: 1100, height: 760 });
+    const narrow = await visibleLabels(page);
+    await page.setViewportSize({ width: 720, height: 760 });
     await expect.poll(async () => (await pageState(page)).total).toBe(wide.total);
-    // back at the original size the reader is within a page of where they were
-    const around = [paragraph(page, 30), page.locator('.prose h2', { hasText: 'Section 6' }), reading, paragraph(page, 32)];
-    await expect.poll(() => anyOnScreen(around)).toBe(true);
+    await expect.poll(async () => (await visibleLabels(page)).includes(narrow[0])).toBe(true);
   });
 
   test('the indicator and the buttons stay consistent after a resize', async ({ page }) => {
@@ -282,7 +280,7 @@ test.describe('resizing', () => {
     await openBook(page, LONG);
     await page.setViewportSize({ width: 800, height: 520 });
     await expect(indicator(page)).toHaveText(/^1 \//);
-    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.setViewportSize({ width: 720, height: 800 });
     await expect(indicator(page)).toHaveText(/^1 \//);
   });
 });

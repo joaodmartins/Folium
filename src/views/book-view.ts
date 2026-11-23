@@ -1,182 +1,76 @@
 import type { Book } from '../../tools/vite-plugin-folium/types';
 import { bookCrumbs, renderBreadcrumbs } from '../components/breadcrumbs';
-import { renderCover } from '../components/cover';
+import { renderBookCover } from '../components/book-cover';
 import { el } from '../dom';
-import { renderBookSheet } from '../components/book-sheet';
-import { findAnchorTarget } from '../reader/anchors';
-import { columnsPaginator } from '../reader/paginator/columns';
-import type { Paginator } from '../reader/paginator/types';
-import { loadFromManifest } from '../reader/source';
-import { categoryHash } from '../router';
+import { categoryHash, readHash } from '../router';
 import type { Page, ViewContext } from './types';
 
-/** Book page: header with the book's details, then its Markdown content (loaded on demand). */
-export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): Page {
-  const { library, assetUrl } = ctx;
+const prefersReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * The book's cover page: what you see when you pick a book. The cover is the main element, with
+ * the title, author, description and category beside it, and one button that opens the book.
+ */
+export function renderBookView({ library, assetUrl }: ViewContext, book: Book): Page {
   const category = library.getCategory(book.categoryId) ?? library.root;
+  const categoryLabel = category.title;
 
-  const details: [string, Node | string][] = [];
-  if (book.meta.author) details.push(['Author', book.meta.author]);
-  details.push(['Category', el('a', { href: categoryHash(category) }, category.title)]);
-  details.push(['Language', book.meta.language]);
+  const cover = renderBookCover(book, assetUrl(book.meta.cover));
 
-  const content = el('section', {
-    class: 'reader',
-    'data-testid': 'book-content',
-    'aria-label': 'Book content',
-    lang: book.meta.language,
-  });
+  const start = el('a', { class: 'button button--large', href: readHash(book), 'data-testid': 'start-reading' }, 'Start reading');
+
+  const info = el(
+    'div',
+    { class: 'cover-view__info' },
+    el('a', { class: 'cover-view__category', href: categoryHash(category), 'data-testid': 'category-link' }, categoryLabel),
+    el('h1', { class: 'page__title cover-view__title', tabindex: '-1' }, book.title),
+    book.meta.author ? el('p', { class: 'cover-view__author' }, `by ${book.meta.author}`) : null,
+    book.meta.description ? el('p', { class: 'page__lead cover-view__description' }, book.meta.description) : null,
+    el('div', { class: 'cover-view__actions' }, start),
+  );
+
+  const stage = el('div', { class: 'cover-view__stage' }, el('div', { class: 'cover-view__book' }, cover), info);
 
   const element = el(
     'main',
-    { class: 'page page--book', id: 'main' },
-    renderBreadcrumbs(bookCrumbs(library, book)),
+    { class: 'page cover-view', id: 'main' },
     el(
-      'header',
-      { class: 'book-header' },
-      renderCover(book.title, book.id, assetUrl(book.meta.cover)),
+      'div',
+      { class: 'cover-view__nav' },
       el(
-        'div',
-        { class: 'book-header__text' },
-        el('h1', { class: 'page__title', tabindex: '-1' }, book.title),
-        book.meta.description ? el('p', { class: 'page__lead' }, book.meta.description) : null,
-        el('dl', { class: 'details' }, ...details.flatMap(([term, value]) => [el('dt', {}, term), el('dd', {}, value)])),
+        'a',
+        { class: 'bar-link', href: categoryHash(category), 'data-testid': 'back-link' },
+        el('span', { 'aria-hidden': 'true' }, '‹'),
+        el('span', {}, categoryLabel === '' ? 'Library' : categoryLabel),
       ),
+      renderBreadcrumbs(bookCrumbs(library, book)),
     ),
-    content,
+    stage,
   );
 
-  let currentAnchor = anchor;
-  let rendered: HTMLElement | undefined;
-  let paginator: Paginator | undefined;
-  let removeKeys: (() => void) | undefined;
-  let attempt = 0; // only the latest attempt may touch the page (retries, slow loads, leaving the page)
-
-  const release = () => {
-    paginator?.destroy();
-    paginator = undefined;
-    removeKeys?.();
-    removeKeys = undefined;
-  };
-
-  /** Shows the page that holds the heading (or the first page when there is no anchor). */
-  const goToAnchor = (target: string | undefined) => {
-    if (!paginator || !rendered) return;
-    const heading = target ? findAnchorTarget(rendered, target) : null;
-    if (heading) paginator.goToElement(heading);
-    else if (!target) paginator.goTo(0);
-  };
-
-  const showLoading = () => {
-    content.setAttribute('aria-busy', 'true');
-    content.replaceChildren(el('p', { class: 'reader__status', role: 'status' }, 'Loading book…'));
-  };
-
-  const showError = (error: unknown) => {
-    const detail = error instanceof Error ? error.message : String(error);
-    const retry = el('button', { type: 'button', class: 'button' }, 'Try again');
-    retry.addEventListener('click', () => void load());
-    content.setAttribute('aria-busy', 'false');
-    content.replaceChildren(
-      el(
-        'div',
-        { class: 'reader__error', role: 'alert' },
-        el('p', { class: 'reader__error-title' }, `We could not load “${book.title}”.`),
-        el('p', { class: 'reader__error-detail' }, `Check your connection and try again. (${detail})`),
-        retry,
-      ),
-    );
-  };
-
-  async function load() {
-    const mine = ++attempt;
-    rendered = undefined;
-    release();
-    showLoading();
-    try {
-      const loadSource = ctx.loadSource ?? loadFromManifest;
-      // The Markdown renderer (markdown-it + DOMPurify) is only downloaded when a book is opened.
-      const [source, { renderMarkdown }] = await Promise.all([loadSource(book), import('../reader/render')]);
-      if (mine !== attempt) return;
-
-      const result = renderMarkdown(source, {
-        title: book.title,
-        bookId: book.id,
-        bookPath: book.path,
-        findBookByPath: (path) => library.getBookByPath(path),
-        assetUrl: (path) => assetUrl(path),
-        chapterBreak: book.meta.chapterBreak,
-      });
-      // Images that fail to load (broken URL, offline…) get a visible placeholder instead.
-      result.element.addEventListener(
-        'error',
-        (event) => {
-          if (event.target instanceof HTMLImageElement) replaceBrokenImage(event.target);
-        },
-        true,
-      );
-
-      // Pages never scroll: code and tables wrap instead, so they are not tab stops.
-      for (const el of result.element.querySelectorAll('pre, .table-wrap')) el.removeAttribute('tabindex');
-
-      const sheet = renderBookSheet(result.element);
-      sheet.root.style.visibility = 'hidden'; // laid out (so it can be measured) but not shown unpaginated
-      content.replaceChildren(sheet.root);
-
-      const created = await (ctx.createPaginator ?? columnsPaginator)(sheet.viewport, result.element);
-      if (mine !== attempt) return created.destroy(); // the user moved on while we were measuring
-      paginator = created;
-      rendered = result.element;
-      sheet.root.style.visibility = '';
-      content.setAttribute('aria-busy', 'false');
-
-      sheet.update({ page: created.page, pageCount: created.pageCount });
-      created.onChange((state) => sheet.update(state));
-      sheet.prevButton.addEventListener('click', () => created.prev());
-      sheet.nextButton.addEventListener('click', () => created.next());
-      removeKeys = listenForArrowKeys(sheet.root, created);
-
-      goToAnchor(currentAnchor);
-    } catch (error) {
-      if (mine === attempt) showError(error);
+  // Opening the book: the cover swings open, then the reader appears. The link works without it.
+  let opening = false;
+  start.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (opening) {
+      event.preventDefault();
+      return;
     }
-  }
-
-  void load();
-
-  return {
-    title: `${book.title} · ${library.title}`,
-    element,
-    onAnchorChange(next) {
-      currentAnchor = next;
-      goToAnchor(next); // while loading: applied once the pages are ready
-    },
-    destroy() {
-      attempt++; // any load still in flight must not touch the page
-      release();
-    },
-  };
-}
-
-/** ← / → turn pages while the book is on screen (not while typing, nor with modifier keys). */
-function listenForArrowKeys(sheet: HTMLElement, paginator: Paginator): () => void {
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-    if (!sheet.isConnected) return;
-    const target = event.target;
-    if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const board = cover.querySelector<HTMLElement>('.book-cover__board');
+    if (!board || typeof board.animate !== 'function' || prefersReducedMotion()) return; // plain navigation
     event.preventDefault();
-    if (event.key === 'ArrowRight') paginator.next();
-    else paginator.prev();
-  };
-  document.addEventListener('keydown', onKeyDown);
-  return () => document.removeEventListener('keydown', onKeyDown);
-}
+    opening = true;
+    stage.classList.add('is-opening');
+    const swing = board.animate(
+      [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-168deg)' }],
+      { duration: 620, easing: 'cubic-bezier(0.5, 0.05, 0.25, 1)', fill: 'forwards' },
+    );
+    info.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, fill: 'forwards' });
+    const go = () => {
+      window.location.hash = readHash(book);
+    };
+    swing.finished.then(go, go);
+  });
 
-function replaceBrokenImage(img: HTMLImageElement) {
-  const alt = img.getAttribute('alt') ?? '';
-  const marker = el('span', { class: 'missing-image', title: `Could not load ${img.getAttribute('src') ?? 'image'}` });
-  marker.textContent = alt ? `${alt} (image could not be loaded)` : 'Image could not be loaded';
-  img.replaceWith(marker);
+  return { title: `${book.title} · ${library.title}`, element };
 }

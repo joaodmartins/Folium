@@ -4,8 +4,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 //   Languages/Russian/A1/Alphabet.md  (headings, table, list)
 //   University/Operating Systems/Theory/Lesson 1.md  (code block, relative image)
 
-const ALPHABET = '/#/book/languages/russian/a1/alphabet';
-const LESSON = '/#/book/university/operating-systems/theory/lesson-1';
+const ALPHABET = '/#/read/languages/russian/a1/alphabet';
+const LESSON = '/#/read/university/operating-systems/theory/lesson-1';
 
 const content = (page: Page) => page.getByTestId('book-content');
 
@@ -51,6 +51,7 @@ test.describe('reading a book', () => {
     await page.getByTestId('category-card').filter({ hasText: 'Russian' }).click();
     await page.getByTestId('category-card').filter({ hasText: 'A1' }).click();
     await page.getByTestId('book-card').filter({ hasText: 'Russian Alphabet' }).click();
+    await page.getByTestId('start-reading').click(); // the book opens on its cover first
 
     const prose = content(page).locator('.prose');
     await expect(prose).toBeVisible();
@@ -127,7 +128,7 @@ test.describe('reading a book', () => {
 
     // moving to another heading of the open book turns to its page without rebuilding the book
     await page.evaluate(() => ((window as unknown as { __prose: Element }).__prose = document.querySelector('.prose')!));
-    await page.evaluate(() => (location.hash = '#/book/university/operating-systems/theory/lesson-1#what-is-an-operating-system'));
+    await page.evaluate(() => (location.hash = '#/read/university/operating-systems/theory/lesson-1#what-is-an-operating-system'));
     await expect(content(page).getByRole('heading', { name: 'What is an operating system?' })).toBeInViewport();
     expect(
       await page.evaluate(() => (window as unknown as { __prose: Element }).__prose === document.querySelector('.prose')),
@@ -140,7 +141,7 @@ test.describe('switching books', () => {
     await page.goto(ALPHABET);
     await expect(content(page)).toContainText('Study tips');
 
-    await page.evaluate(() => (location.hash = '#/book/university/operating-systems/theory/lesson-1'));
+    await page.evaluate(() => (location.hash = '#/read/university/operating-systems/theory/lesson-1'));
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Operating Systems - Lesson 1');
     await expect(content(page).locator('pre code')).toBeVisible();
     await expect(content(page)).not.toContainText('Study tips');
@@ -160,9 +161,9 @@ test.describe('switching books', () => {
       await route.continue();
     });
     await page.goto('/');
-    await page.evaluate(() => (location.hash = '#/book/languages/russian/a1/alphabet'));
+    await page.evaluate(() => (location.hash = '#/read/languages/russian/a1/alphabet'));
     await expect(content(page).getByText('Loading book…')).toBeVisible();
-    await page.evaluate(() => (location.hash = '#/book/university/operating-systems/theory/lesson-1'));
+    await page.evaluate(() => (location.hash = '#/read/university/operating-systems/theory/lesson-1'));
     await expect(content(page).locator('pre code')).toBeVisible();
 
     await page.waitForTimeout(1200); // the delayed book has had time to arrive
@@ -211,7 +212,7 @@ test.describe('mobile', () => {
       expect(overflow).toBeLessThanOrEqual(0);
 
       const prose = (await content(page).locator('.prose').boundingBox())!;
-      expect(prose.width).toBeGreaterThan(300);
+      expect(prose.width).toBeGreaterThan(250); // the page is the screen, minus the page margins
       expect(prose.width).toBeLessThanOrEqual(375);
     });
   }

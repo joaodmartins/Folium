@@ -12,19 +12,22 @@ The project is intentionally simple: no backend, no database, no authentication,
 
 ## Current status
 
-**Phases 0 to 4 of the plan are done.** What exists today:
+**Phases 0 to 4 of the plan are done, plus the "physical book" reading experience.** What exists today:
 
 - Project tooling (Vite, TypeScript, Vitest, Playwright).
 - A navigable library built from the manifest: home with the top-level categories, category pages at any depth (sub-categories and books, with breadcrumbs), a book page, and a "not found" page. Navigation uses hash routes, so it works on GitHub Pages and with the browser's back/forward buttons:
-  `#/`, `#/category/languages/russian`, `#/book/languages/russian/a1/alphabet` (the ids are the manifest ids).
+  `#/`, `#/category/languages/russian`, `#/book/languages/russian/a1/alphabet` (the cover), `#/read/languages/russian/a1/alphabet` (reading); the ids are the manifest ids.
 - A Markdown reader on the book page: the book's `.md` is loaded only when the book is opened (via the manifest's `book.load()`), rendered with markdown-it, sanitized with DOMPurify and shown with reading typography. It supports headings, emphasis, lists, blockquotes, tables, code blocks (not highlighted yet), horizontal rules, links and images. Images and links are resolved relative to the Markdown file: `![d](images/d.png)` and `[next](<Lesson 2.md>)` work, and links to other books use the app's routes. Every heading gets a unique id, so `#/book/<id>#<heading>` opens a book at that heading.
-- Paginated reading: a book is shown as pages inside a "sheet" (one page at a time, no scrolling of the whole screen), with previous/next buttons, a page indicator (`3 / 12`) and the ← / → keys. Pages are CSS columns (one column = one page): the browser breaks lines and pages, and Folium measures the result, waits for fonts and images, and keeps the reader at the same place in the text when the window is resized or the device is rotated. A heading link opens the page that contains it.
+- A cover page for every book: opening a book shows its cover (the `cover` image, or a printed cover made from the title and author), with the title, author, description, category and a "Start reading" button. The text is only loaded when you start reading.
+- The open book: reading shows a slim bar (back, previous / page number / next, theme) and the book on a desk, using all the space. Wide screens show two pages side by side with a spine; narrow ones (phones, a tablet held upright) show one page. Pages turn with a 3D page-turn animation (a plain quick fade with `prefers-reduced-motion`). Pages are numbered individually (`1–2 / 500`, the last odd page alone); the current number is a button: click it, type a page, press Enter.
+- Pages are CSS columns (one column = one page): the browser breaks lines and pages, and Folium measures the result, waits for fonts and images, and keeps the reader at the same place in the text when the window is resized or the device is rotated. A heading link (`#/book/<id>#heading`, `#/read/<id>#heading`) opens the view that contains it.
+- Themes: Light, Dark and Sepia, chosen with three swatches in the reading bar and remembered in `localStorage`. They only change colours, never the layout.
 - Page breaks: `<!-- pagebreak -->` on its own line starts a new page; the book's `chapterBreak` (`h1`, `h2` or `none`, default `h1`) makes headings of that level (and above) start a new page.
 - Covers: a book/category `cover` image from `Library/` is shown when it exists, otherwise a generated cover.
 - A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): a table-of-contents UI, math (KaTeX), syntax highlighting, theme switching and reading settings, saved reading position, and the page header/chapter title. The page number depends on the screen size and text size, so it is not the same on every device.
+What does **not** exist yet (planned for later phases): a table-of-contents UI, math (KaTeX), syntax highlighting, reading settings (font size, line height), and a saved reading position. The page number depends on the screen size and text size, so it is not the same on every device.
 
 ## Technologies
 
@@ -63,10 +66,13 @@ tools/vite-plugin-folium/  Vite plugin: discovers books and builds the manifest
 src/                     Application code
   router.ts, library.ts  Hash routes and lookups over the manifest
   app.ts, main.ts        Mounts the app and renders the current route
-  views/                 Library (home), category, book and not-found views
-  components/            Breadcrumbs, cards, covers
+  views/                 Library (home), category, book cover, reader and not-found views
+  components/            Breadcrumbs, cards, book cover, the open book frame, reader bar, page indicator, theme switcher
+  state/                 Theme preference (localStorage)
   reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, page breaks, source loader
+  reader/layout.ts       Size of the open book (one page or two) for the space available
   reader/paginator/      The Paginator interface and its CSS-columns implementation
+  reader/flip/           The page-turn animation (copies of the pages involved, drawn on top of the book)
   styles/                CSS (design tokens, base styles)
 tests/
   unit/                  Vitest tests in jsdom (logic, DOM structure)

@@ -1,10 +1,6 @@
-import type { PageState, Paginator, PaginatorFactory } from './types';
+import type { PageState, Paginator, PaginatorFactory, PaginatorOptions } from './types';
 
-export interface ColumnsOptions {
-  /** Space between pages (never visible: neighbouring pages are clipped). */
-  gap?: number;
-  /** Animate page turns (always off with `prefers-reduced-motion`). Default: true. */
-  animate?: boolean;
+export interface ColumnsOptions extends PaginatorOptions {
   /** Give up waiting for slow images after this many ms. Default: 4000. */
   imageTimeout?: number;
 }
@@ -35,12 +31,16 @@ export async function createColumnsPaginator(
   let pageCount = 1;
   let width = 0;
   let height = 0;
+  let view = 1; // pages on screen at once
   let destroyed = false;
   let frame = 0;
   let forceNext = false;
 
   const step = () => width + gap;
   const clamp = (value: number) => Math.min(Math.max(Math.trunc(value) || 0, 0), pageCount - 1);
+  /** A view starts on its first page: with two pages per view, page 3 is shown with page 2. */
+  const snap = (value: number) => value - (value % view);
+  const wantedView = () => Math.max(1, Math.floor(options.pagesPerView?.() ?? 1) || 1);
 
   // ---- showing a page ------------------------------------------------------------------
 
@@ -56,7 +56,7 @@ export async function createColumnsPaginator(
   };
 
   const setPage = (target: number, animated: boolean) => {
-    const next = clamp(target);
+    const next = snap(clamp(target));
     show(next, animated);
     if (next !== page) {
       page = next;
@@ -149,7 +149,10 @@ export async function createColumnsPaginator(
       }
     }
 
-    width = Math.floor(viewport.clientWidth);
+    const previousView = view;
+    view = wantedView();
+    // The viewport holds `view` pages and the gaps between them.
+    width = Math.floor((viewport.clientWidth - (view - 1) * gap) / view);
     height = Math.floor(viewport.clientHeight);
     if (width > 0 && height > 0) {
       const s = content.style;
@@ -166,10 +169,10 @@ export async function createColumnsPaginator(
 
     let target = page;
     if (reading) target = pageOfPlace(reading) ?? Math.min(page, pageCount - 1);
-    target = clamp(target);
+    target = snap(clamp(target));
 
     show(target, false);
-    if (target !== page || pageCount !== previousCount) {
+    if (target !== page || pageCount !== previousCount || view !== previousView) {
       page = target;
       emit();
     }
@@ -181,16 +184,19 @@ export async function createColumnsPaginator(
 
   let measuredWidth = 0;
   let measuredHeight = 0;
+  let measuredView = 1;
 
   const relayout = () => {
     frame = 0;
     if (destroyed) return;
     const w = Math.floor(viewport.clientWidth);
     const h = Math.floor(viewport.clientHeight);
-    if (!forceNext && w === measuredWidth && h === measuredHeight) return; // nothing changed: no work, no loops
+    const v = wantedView();
+    if (!forceNext && w === measuredWidth && h === measuredHeight && v === measuredView) return; // nothing changed: no work, no loops
     forceNext = false;
     measuredWidth = w;
     measuredHeight = h;
+    measuredView = v;
     layout(true);
   };
 
@@ -232,6 +238,7 @@ export async function createColumnsPaginator(
   await Promise.all([document.fonts?.ready, ...pendingImages(content, options.imageTimeout ?? 4000)]);
   measuredWidth = Math.floor(viewport.clientWidth);
   measuredHeight = Math.floor(viewport.clientHeight);
+  measuredView = wantedView();
   layout(false);
 
   return {
@@ -241,15 +248,21 @@ export async function createColumnsPaginator(
     get pageCount() {
       return pageCount;
     },
+    get pagesPerView() {
+      return view;
+    },
+    get pageSize() {
+      return { width, height, gap };
+    },
     goTo: (target) => setPage(target, false),
     next() {
-      if (page >= pageCount - 1) return false;
-      setPage(page + 1, true);
+      if (page + view >= pageCount) return false;
+      setPage(page + view, true);
       return true;
     },
     prev() {
       if (page <= 0) return false;
-      setPage(page - 1, true);
+      setPage(page - view, true);
       return true;
     },
     pageOf,
@@ -261,6 +274,7 @@ export async function createColumnsPaginator(
       forceNext = false;
       measuredWidth = Math.floor(viewport.clientWidth);
       measuredHeight = Math.floor(viewport.clientHeight);
+      measuredView = wantedView();
       layout(true);
     },
     onChange(listener) {
@@ -284,7 +298,8 @@ export async function createColumnsPaginator(
 }
 
 /** Compile-time check that the factory type matches. */
-export const columnsPaginator: PaginatorFactory = (viewport, content) => createColumnsPaginator(viewport, content);
+export const columnsPaginator: PaginatorFactory = (viewport, content, options) =>
+  createColumnsPaginator(viewport, content, options);
 
 /** Promises for images that are not loaded yet (capped, so one slow image cannot block reading). */
 function pendingImages(root: HTMLElement, timeout: number): Promise<unknown>[] {

@@ -4,6 +4,7 @@ import type { PaginatorFactory } from './reader/paginator/types';
 import { createSourceLoader, loadFromManifest, type SourceLoader } from './reader/source';
 import { parseHash, resolveRoute, type ResolvedRoute } from './router';
 import { renderBookView } from './views/book-view';
+import { renderReaderView } from './views/reader-view';
 import { renderCategoryView } from './views/category-view';
 import { renderLibraryView } from './views/library-view';
 import { renderNotFoundView } from './views/not-found-view';
@@ -37,7 +38,10 @@ function renderResolved(route: ResolvedRoute, context: ViewContext): Page {
     case 'category':
       return renderCategoryView(context, route.category);
     case 'book':
-      return renderBookView(context, route.book, route.anchor);
+      // A link to a heading opens the book for reading at that heading; otherwise the cover comes first.
+      return route.anchor ? renderReaderView(context, route.book, route.anchor) : renderBookView(context, route.book);
+    case 'read':
+      return renderReaderView(context, route.book, route.anchor);
     case 'not-found':
       return renderNotFoundView(context, route.hash);
   }
@@ -53,20 +57,22 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
 
   const loadSource = options.loadSource ?? createSourceLoader(loadFromManifest);
 
-  let current: { bookId?: string; page: Page } | undefined;
+  let current: { bookId?: string; reading: boolean; page: Page } | undefined;
 
   const render = () => {
     const route = resolveRoute(parseHash(win.location.hash), library);
 
+    const reading = route.name === 'read' || (route.name === 'book' && Boolean(route.anchor));
+
     // Same book, different #heading: just move there, do not rebuild the book.
-    if (route.name === 'book' && current?.bookId === route.book.id && current.page.onAnchorChange) {
+    if (reading && current?.reading && 'book' in route && current.bookId === route.book.id && current.page.onAnchorChange) {
       current.page.onAnchorChange(route.anchor);
       return;
     }
 
     current?.page.destroy?.();
     const page = renderResolved(route, { library, assetUrl, loadSource, createPaginator: options.createPaginator });
-    current = { bookId: route.name === 'book' ? route.book.id : undefined, page };
+    current = { bookId: 'book' in route ? route.book.id : undefined, reading, page };
     container.replaceChildren(page.element);
     win.document.title = page.title;
     win.scrollTo?.(0, 0);

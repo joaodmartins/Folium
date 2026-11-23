@@ -47,8 +47,9 @@ test.describe('navigation', () => {
     await expect(page).toHaveURL(/#\/book\/languages\/russian\/a1\/alphabet$/);
     await expect(h1(page)).toHaveText('Russian Alphabet');
     await expect(page).toHaveTitle('Russian Alphabet · Folium');
-    await expect(page.getByTestId('book-content')).toBeVisible();
-    // (scoped to the header: the book's own text repeats the description)
+    // a book opens on its cover, not on its text
+    await expect(page.getByTestId('book-cover')).toBeVisible();
+    await expect(page.getByTestId('book-content')).toHaveCount(0);
     await expect(page.locator('.page__lead')).toContainText('the Cyrillic alphabet');
 
     // Back button: book → A1 → Russian
@@ -91,7 +92,7 @@ test.describe('navigation', () => {
   test('the book page links back to its category', async ({ page }) => {
     await page.goto('/#/book/university/operating-systems/theory/lesson-1');
     await expect(h1(page)).toHaveText('Operating Systems - Lesson 1');
-    await page.locator('dl.details').getByRole('link', { name: 'Theory' }).click();
+    await page.getByTestId('category-link').click();
     await expect(page).toHaveURL(/#\/category\/university\/operating-systems\/theory$/);
   });
 });
