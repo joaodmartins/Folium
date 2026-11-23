@@ -1,0 +1,5 @@
+{
+  "order": 1,
+  "cover": "russian.png",
+  "defaults": { "language": "ru", "showTableOfContents": true }
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Fixture Library",
+  "tagline": "Used by the unit tests",
+  "defaultTheme": "sepia",
+  "defaults": {
+    "author": "Global Author",
+    "language": "en",
+    "chapterBreak": "h2"
+  }
+}

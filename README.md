@@ -12,13 +12,14 @@ The project is intentionally simple: no backend, no database, no authentication,
 
 ## Current status
 
-**Phase 0 (scaffold) only.** What exists today:
+**Phases 0 and 1 of the plan are done.** What exists today:
 
 - Project tooling (Vite, TypeScript, Vitest, Playwright).
 - A static landing page with the Folium identity and placeholder cards.
+- A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): automatic book discovery, Markdown rendering, categories navigation, the reader, pagination, math (KaTeX), syntax highlighting, theme switching and reading settings. The example books are not read by the application yet.
+What does **not** exist yet (planned for later phases): the app does not use the manifest yet, so there is no library view, category navigation, Markdown rendering, reader, pagination, math (KaTeX), syntax highlighting, theme switching or reading settings.
 
 ## Technologies
 
@@ -52,6 +53,7 @@ Library/                 Your content: categories are folders, books are .md fil
   University/Operating Systems/Theory/Lesson 1.md
   **/_folder.json        Optional per-folder metadata (title, order, defaults)
 folium.config.json       Global site configuration
+tools/vite-plugin-folium/  Vite plugin: discovers books and builds the manifest
 src/                     Application code
   styles/                CSS (design tokens, base styles)
   views/                 Future views (library, reader)
@@ -65,4 +67,20 @@ tests/
 
 ## Adding books
 
-Books will live in `Library/`. A folder is a category, a `.md` file is a book, and metadata goes in optional YAML frontmatter at the top of the file. The example files show the intended format, but the application does not read them yet.
+Books live in `Library/`. A folder is a category (any depth), a `.md` file is a book, and metadata goes in optional YAML frontmatter at the top of the file. No code changes are needed: add the file and the manifest picks it up.
+
+```markdown
+---
+title: Russian A1 - Lesson 1     # optional: else the first "# H1", else the file name
+author: João Martins
+description: Introduction to the Russian alphabet
+cover: cover.jpg                 # relative to the .md file
+language: en
+showTableOfContents: true
+order: 1                         # optional: else natural name order ("Lesson 2" < "Lesson 10")
+chapterBreak: h1                 # h1 | h2 | none
+draft: false                     # true hides the book
+---
+```
+
+Settings resolve in this order, the most specific winning: `folium.config.json` `defaults` → the `"defaults"` of each `_folder.json` from the top folder down → the book's frontmatter. `_folder.json` may also set `title`, `description`, `cover` and `order` for the category itself. Invalid values stop the build with the offending file and field.

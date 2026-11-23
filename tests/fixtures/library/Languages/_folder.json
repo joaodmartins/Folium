@@ -1,0 +1,6 @@
+{
+  "title": "Languages",
+  "description": "Language courses.",
+  "order": 2,
+  "defaults": { "author": "Folder Author", "language": "pt" }
+}
