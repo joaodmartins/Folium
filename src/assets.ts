@@ -1,5 +1,6 @@
-// Images stored next to the books (covers). Vite resolves them to their final (hashed) URLs.
-const images = import.meta.glob('/Library/**/*.{png,jpg,jpeg,gif,webp,avif,svg}', {
+// Files stored next to the books (images, covers, and a few common attachments).
+// Vite resolves them to their final (hashed) URLs. Markdown files are not assets.
+const images = import.meta.glob('/Library/**/*.{png,jpg,jpeg,gif,webp,avif,svg,pdf,mp3,mp4,webm,ogg,wav,zip,txt,csv}', {
   query: '?url',
   import: 'default',
   eager: true,

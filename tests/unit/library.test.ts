@@ -44,3 +44,11 @@ describe('createLibrary', () => {
     expect(library.trailTo(library.root)).toEqual([library.root]);
   });
 });
+
+describe('getBookByPath', () => {
+  it('finds a book by its library-relative file path', () => {
+    expect(library.getBookByPath('Languages/Russian/A1/Alphabet.md')?.id).toBe('languages/russian/a1/alphabet');
+    expect(library.getBookByPath('Languages/Russian/A1/Secret.md')).toBeUndefined(); // draft
+    expect(library.getBookByPath('nope.md')).toBeUndefined();
+  });
+});

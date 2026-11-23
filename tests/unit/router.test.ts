@@ -111,3 +111,36 @@ describe('resolveRoute (against the manifest)', () => {
     expect(resolveRoute({ name: 'category', id: '' }, library).name).toBe('not-found');
   });
 });
+
+describe('heading anchors in book routes', () => {
+  it('parses a second "#" as the heading inside the book', () => {
+    expect(parseHash('#/book/languages/russian/a1/alphabet#study-tips')).toEqual({
+      name: 'book',
+      id: 'languages/russian/a1/alphabet',
+      anchor: 'study-tips',
+    });
+    expect(parseHash('#/book/a/b#Visão%20geral')).toEqual({ name: 'book', id: 'a/b', anchor: 'Visão geral' });
+  });
+
+  it('has no anchor when the fragment is empty, and ignores anchors on other routes', () => {
+    expect(parseHash('#/book/top-level#')).toEqual({ name: 'book', id: 'top-level' });
+    expect(parseHash('#/category/languages#x')).toEqual({ name: 'category', id: 'languages' });
+    expect(parseHash('#/#x')).toEqual({ name: 'home' });
+  });
+
+  it('round-trips anchors and keeps them when resolving', () => {
+    const route: Route = { name: 'book', id: 'languages/russian/a1/alphabet', anchor: 'Visão geral & more' };
+    expect(parseHash(hashFor(route))).toEqual(route);
+    expect(hashFor({ name: 'book', id: 'x', anchor: 'a b' })).toBe('#/book/x#a%20b');
+    expect(resolveRoute({ name: 'book', id: 'top-level', anchor: 'x' }, library)).toMatchObject({
+      name: 'book',
+      anchor: 'x',
+      book: { id: 'top-level' },
+    });
+    expect(resolveRoute({ name: 'book', id: 'nope', anchor: 'x' }, library).name).toBe('not-found');
+  });
+
+  it('rejects malformed escapes in the anchor', () => {
+    expect(parseHash('#/book/top-level#%E0%A4%A').name).toBe('not-found');
+  });
+});

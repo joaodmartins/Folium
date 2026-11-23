@@ -1,29 +1,34 @@
 import { resolveAsset, type AssetResolver } from './assets';
 import type { Library } from './library';
-import { parseHash, resolveRoute } from './router';
+import { createSourceLoader, loadFromManifest, type SourceLoader } from './reader/source';
+import { parseHash, resolveRoute, type ResolvedRoute } from './router';
 import { renderBookView } from './views/book-view';
 import { renderCategoryView } from './views/category-view';
 import { renderLibraryView } from './views/library-view';
 import { renderNotFoundView } from './views/not-found-view';
-import type { Page } from './views/types';
+import type { Page, ViewContext } from './views/types';
 
 export interface AppOptions {
   assetUrl?: AssetResolver;
+  /** Loads a book's Markdown. Default: the manifest's lazy `book.load()`, cached per app. */
+  loadSource?: SourceLoader;
   /** Window to listen on (defaults to the global one). */
   win?: Window;
 }
 
 /** Renders the view for a hash against the library. */
-export function renderRoute(hash: string, library: Library, assetUrl: AssetResolver): Page {
-  const context = { library, assetUrl };
-  const route = resolveRoute(parseHash(hash), library);
+export function renderRoute(hash: string, library: Library, assetUrl: AssetResolver, loadSource?: SourceLoader): Page {
+  return renderResolved(resolveRoute(parseHash(hash), library), { library, assetUrl, loadSource });
+}
+
+function renderResolved(route: ResolvedRoute, context: ViewContext): Page {
   switch (route.name) {
     case 'home':
       return renderLibraryView(context);
     case 'category':
       return renderCategoryView(context, route.category);
     case 'book':
-      return renderBookView(context, route.book);
+      return renderBookView(context, route.book, route.anchor);
     case 'not-found':
       return renderNotFoundView(context, route.hash);
   }
@@ -37,8 +42,21 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
   const win = options.win ?? window;
   const assetUrl = options.assetUrl ?? resolveAsset;
 
+  const loadSource = options.loadSource ?? createSourceLoader(loadFromManifest);
+
+  let current: { bookId: string; page: Page } | undefined;
+
   const render = () => {
-    const page = renderRoute(win.location.hash, library, assetUrl);
+    const route = resolveRoute(parseHash(win.location.hash), library);
+
+    // Same book, different #heading: just move there, do not rebuild the book.
+    if (route.name === 'book' && current?.bookId === route.book.id && current.page.onAnchorChange) {
+      current.page.onAnchorChange(route.anchor);
+      return;
+    }
+
+    const page = renderResolved(route, { library, assetUrl, loadSource });
+    current = route.name === 'book' ? { bookId: route.book.id, page } : undefined;
     container.replaceChildren(page.element);
     win.document.title = page.title;
     win.scrollTo?.(0, 0);

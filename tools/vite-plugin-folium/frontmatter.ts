@@ -14,21 +14,7 @@ export const BOOK_FIELDS: Record<string, FieldSpec> = {
   draft: 'boolean',
 };
 
-// Opening `---` line, optional YAML, closing `---` line. Tolerates a BOM and CRLF line endings.
-const FRONTMATTER_RE = /^﻿?---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
-
-export interface SplitResult {
-  /** Raw YAML text, or null when the file has no frontmatter block. */
-  yaml: string | null;
-  /** Markdown after the frontmatter block (the whole text when there is none). */
-  body: string;
-}
-
-export function splitFrontmatter(text: string): SplitResult {
-  const match = FRONTMATTER_RE.exec(text);
-  if (!match) return { yaml: null, body: text.replace(/^﻿/, '') };
-  return { yaml: match[1] ?? '', body: text.slice(match[0].length) };
-}
+export { splitFrontmatter, type SplitResult } from './split-frontmatter.ts';
 
 /**
  * Parses and validates the frontmatter of a book.

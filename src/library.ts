@@ -9,6 +9,8 @@ export interface Library<B extends Book = Book> {
   /** Category by manifest id (e.g. "languages/russian"). The root ("") is not addressable. */
   getCategory(id: string): CategoryNode | undefined;
   getBook(id: string): B | undefined;
+  /** Book by its library-relative file path (e.g. "Languages/Russian/A1/Alphabet.md"). */
+  getBookByPath(path: string): B | undefined;
   /** Books directly inside the category, in manifest order. */
   booksOf(category: CategoryNode): B[];
   /** Categories from the root down to (and including) the given category. */
@@ -21,6 +23,7 @@ export function createLibrary<B extends Book>(manifest: LibraryManifest<B>): Lib
   const categories = new Map<string, CategoryNode>();
   const parents = new Map<CategoryNode, CategoryNode>();
   const booksById = new Map(manifest.books.map((b) => [b.id, b]));
+  const booksByPath = new Map(manifest.books.map((b) => [b.path, b]));
   const counts = new Map<CategoryNode, number>();
 
   const index = (node: CategoryNode) => {
@@ -48,6 +51,7 @@ export function createLibrary<B extends Book>(manifest: LibraryManifest<B>): Lib
     books: manifest.books,
     getCategory: (id) => categories.get(id),
     getBook: (id) => booksById.get(id),
+    getBookByPath: (path) => booksByPath.get(path),
     booksOf: (category) => category.bookIds.map((id) => booksById.get(id)).filter((b): b is B => b !== undefined),
     trailTo(category) {
       const trail: CategoryNode[] = [];

@@ -1,4 +1,4 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderBookView } from '../../src/views/book-view';
 import { renderCategoryView } from '../../src/views/category-view';

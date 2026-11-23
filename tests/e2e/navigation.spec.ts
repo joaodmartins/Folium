@@ -48,7 +48,8 @@ test.describe('navigation', () => {
     await expect(h1(page)).toHaveText('Russian Alphabet');
     await expect(page).toHaveTitle('Russian Alphabet · Folium');
     await expect(page.getByTestId('book-content')).toBeVisible();
-    await expect(page.getByText('The Cyrillic alphabet', { exact: false })).toBeVisible();
+    // (scoped to the header: the book's own text repeats the description)
+    await expect(page.locator('.page__lead')).toContainText('the Cyrillic alphabet');
 
     // Back button: book → A1 → Russian
     await page.goBack();

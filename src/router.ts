@@ -6,33 +6,38 @@ import type { Library } from './library';
  *   #/                         home
  *   #/category/<category id>   e.g. #/category/languages/russian/a1
  *   #/book/<book id>           e.g. #/book/languages/russian/a1/alphabet
+ *   #/book/<book id>#<heading> a heading inside a book (a second "#": the first one is the router's)
  * Ids are the ones in the manifest (slugged folder/file paths).
  */
 export type Route =
   | { name: 'home' }
   | { name: 'category'; id: string }
-  | { name: 'book'; id: string }
+  | { name: 'book'; id: string; anchor?: string }
   | { name: 'not-found'; hash: string };
 
 /** A route checked against the library: unknown ids become `not-found`. */
 export type ResolvedRoute<B extends Book = Book> =
   | { name: 'home' }
   | { name: 'category'; category: CategoryNode }
-  | { name: 'book'; book: B }
+  | { name: 'book'; book: B; anchor?: string }
   | { name: 'not-found'; hash: string };
 
 /** Parses `location.hash` into a route. Purely syntactic: it does not look at the library. */
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, '');
-  const path = raw.split('?')[0];
+  const anchorAt = raw.indexOf('#');
+  const rawAnchor = anchorAt === -1 ? '' : raw.slice(anchorAt + 1);
+  const path = (anchorAt === -1 ? raw : raw.slice(0, anchorAt)).split('?')[0];
   if (/^\/*$/.test(path)) return { name: 'home' };
 
   const notFound: Route = { name: 'not-found', hash };
   if (!path.startsWith('/')) return notFound;
 
   let segments: string[];
+  let anchor: string;
   try {
     segments = path.split('/').filter((s) => s !== '').map(decodeURIComponent);
+    anchor = decodeURIComponent(rawAnchor);
   } catch {
     return notFound; // malformed %-escape
   }
@@ -40,7 +45,10 @@ export function parseHash(hash: string): Route {
   const [kind, ...rest] = segments;
   if (rest.length === 0 || rest.some((s) => s === '.' || s === '..')) return notFound;
   if (kind === 'category') return { name: 'category', id: rest.join('/') };
-  if (kind === 'book') return { name: 'book', id: rest.join('/') };
+  if (kind === 'book') {
+    const id = rest.join('/');
+    return anchor === '' ? { name: 'book', id } : { name: 'book', id, anchor };
+  }
   return notFound;
 }
 
@@ -54,7 +62,7 @@ export function hashFor(route: Route): string {
     case 'category':
       return `#/category/${encodeId(route.id)}`;
     case 'book':
-      return `#/book/${encodeId(route.id)}`;
+      return `#/book/${encodeId(route.id)}${route.anchor ? `#${encodeURIComponent(route.anchor)}` : ''}`;
     case 'not-found':
       return route.hash;
   }
@@ -74,7 +82,8 @@ export function resolveRoute<B extends Book>(route: Route, library: Library<B>):
     }
     case 'book': {
       const book = library.getBook(route.id);
-      return book ? { name: 'book', book } : { name: 'not-found', hash: hashFor(route) };
+      if (!book) return { name: 'not-found', hash: hashFor(route) };
+      return route.anchor ? { name: 'book', book, anchor: route.anchor } : { name: 'book', book };
     }
     case 'not-found':
       return route;

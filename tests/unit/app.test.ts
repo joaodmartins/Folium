@@ -1,4 +1,4 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mountApp, renderRoute } from '../../src/app';
 import { createLibrary } from '../../src/library';
@@ -37,6 +37,7 @@ describe('mountApp (hash navigation)', () => {
   const heading = () => container.querySelector('h1')?.textContent;
 
   beforeEach(() => {
+    window.scrollTo = (() => {}) as typeof window.scrollTo; // jsdom does not implement it
     window.location.hash = '';
     container = document.createElement('div');
     document.body.append(container);

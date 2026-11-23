@@ -38,4 +38,6 @@ int main(void) {
 }
 ```
 
+![fork() creates a child process that is a copy of the parent](images/fork.svg)
+
 In the next lesson we will look at how processes are scheduled.

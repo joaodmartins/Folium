@@ -275,25 +275,6 @@ h1:focus {
   margin: 0;
 }
 
-.placeholder {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--text-muted);
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-}
-
-.placeholder p {
-  margin: 0;
-}
-
-.placeholder__path {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  font-family: ui-monospace, monospace;
-}
-
 /* ---------- Misc ---------- */
 
 .empty {
@@ -329,5 +310,242 @@ h1:focus {
 @media (prefers-reduced-motion: reduce) {
   .card {
     transition: none;
+  }
+}
+
+/* ---------- Reader (book content) ---------- */
+
+.reader {
+  max-width: 42rem; /* ~65 characters per line */
+  margin: 0 auto;
+}
+
+.reader__status,
+.reader__error {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem 1rem;
+}
+
+.reader__error {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.reader__error-title {
+  color: var(--text);
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.reader__error-detail {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.reader__error .button {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.prose {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose pre,
+.prose .table-wrap,
+.prose figure {
+  margin: 0 0 1.1em;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  line-height: 1.25;
+  margin: 1.8em 0 0.6em;
+  scroll-margin-top: 1rem;
+  text-wrap: balance;
+}
+
+.prose h1 {
+  font-size: 2rem;
+}
+
+.prose h2 {
+  font-size: 1.5rem;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose h3 {
+  font-size: 1.25rem;
+}
+
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-size: 1.05rem;
+}
+
+.prose h5,
+.prose h6 {
+  color: var(--text-muted);
+}
+
+.prose a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.6em;
+}
+
+.prose li + li {
+  margin-top: 0.3em;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin: 0.3em 0 0;
+}
+
+.prose blockquote {
+  padding: 0.1em 1em;
+  color: var(--text-muted);
+  border-left: 3px solid var(--accent);
+  font-style: italic;
+}
+
+.prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.prose hr {
+  margin: 2.2em auto;
+  width: 30%;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.prose code,
+.prose kbd {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  padding: 0.12em 0.35em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  hyphens: none;
+}
+
+.prose pre {
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.prose pre code {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border: 0;
+  white-space: pre;
+}
+
+.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.4em auto;
+  border-radius: 6px;
+}
+
+.prose p > img:only-child {
+  margin-block: 0.4em;
+}
+
+.prose .table-wrap {
+  overflow-x: auto;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.prose th,
+.prose td {
+  padding: 0.5em 0.8em;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose th {
+  font-weight: 600;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+}
+
+.prose .missing-image,
+.prose .broken-link {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.prose .missing-image {
+  display: block;
+  margin: 1.2em 0;
+  padding: 1rem;
+  text-align: center;
+  font-family: var(--font-ui);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.prose .broken-link {
+  text-decoration: line-through;
+  cursor: help;
+}
+
+@media (max-width: 36rem) {
+  .prose {
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+
+  .prose h1 {
+    font-size: 1.7rem;
+  }
+
+  .prose h2 {
+    font-size: 1.35rem;
   }
 }

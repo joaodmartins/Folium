@@ -1,4 +1,4 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { bookCrumbs, categoryCrumbs, renderBreadcrumbs } from '../../src/components/breadcrumbs';
 import { createLibrary } from '../../src/library';
