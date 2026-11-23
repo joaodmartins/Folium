@@ -7,6 +7,7 @@ import { renderRoute } from '../../src/app';
 import { renderBookView } from '../../src/views/book-view';
 import { renderCategoryView } from '../../src/views/category-view';
 import { renderLibraryView } from '../../src/views/library-view';
+import type { Paginator, PaginatorFactory } from '../../src/reader/paginator/types';
 import type { Book } from '../../tools/vite-plugin-folium/types';
 import { scanFixture } from './helpers';
 
@@ -17,6 +18,32 @@ const lesson1 = library.getBook('languages/russian/a1/lesson-1')!;
 
 const content = (page: { element: HTMLElement }) => page.element.querySelector<HTMLElement>('[data-testid="book-content"]')!;
 const text = (node: Element | null | undefined) => node?.textContent?.replace(/\s+/g, ' ').trim();
+
+/** The book is on screen: loaded, rendered and paginated. */
+const ready = (page: { element: HTMLElement }) =>
+  vi.waitFor(() => {
+    expect(content(page).getAttribute('aria-busy')).toBe('false');
+    expect(content(page).querySelector('.prose')).not.toBeNull();
+  });
+
+/** A paginator without layout (jsdom has none) that records what the view asks of it. */
+function fakePaginator(log: string[], pageCount = 3): PaginatorFactory {
+  return async () => {
+    const paginator: Paginator = {
+      page: 0,
+      pageCount,
+      goTo: (page) => void log.push(`goTo:${page}`),
+      next: () => (log.push('next'), true),
+      prev: () => (log.push('prev'), true),
+      pageOf: () => 0,
+      goToElement: (element) => void log.push(`element:${element.id}`),
+      refresh: () => {},
+      onChange: () => () => {},
+      destroy: () => void log.push('destroy'),
+    };
+    return paginator;
+  };
+}
 
 /** A source that the test resolves or rejects by hand. */
 function deferred() {
@@ -64,7 +91,7 @@ describe('book content loading', () => {
     expect(content(page).querySelector('.prose')).toBeNull();
 
     source.resolve(ALPHABET_MD);
-    await vi.waitFor(() => expect(content(page).querySelector('.prose')).not.toBeNull());
+    await ready(page);
 
     expect(content(page).getAttribute('aria-busy')).toBe('false');
     expect(content(page).querySelector('[role="status"]')).toBeNull();
@@ -77,7 +104,7 @@ describe('book content loading', () => {
   it('resolves images and links relative to the book, and hides the duplicated title', async () => {
     const assetUrl = (path?: string) => (path === 'Languages/Russian/A1/images/chart.png' ? '/assets/chart-1.png' : undefined);
     const page = renderBookView({ library, assetUrl, loadSource: async () => ALPHABET_MD }, alphabet);
-    await vi.waitFor(() => expect(content(page).querySelector('.prose')).not.toBeNull());
+    await ready(page);
 
     expect(content(page).querySelector('img')?.getAttribute('src')).toBe('/assets/chart-1.png');
     expect(content(page).querySelector('a')?.getAttribute('href')).toBe('#/book/languages/russian/a1/lesson-1');
@@ -97,7 +124,7 @@ describe('book content loading', () => {
     expect(content(page).getAttribute('aria-busy')).toBe('false');
 
     alert.querySelector('button')!.click();
-    await vi.waitFor(() => expect(content(page).querySelector('.prose')).not.toBeNull());
+    await ready(page);
     expect(content(page).querySelector('[role="alert"]')).toBeNull();
     expect(loadSource).toHaveBeenCalledTimes(2);
   });
@@ -118,7 +145,7 @@ describe('book content loading', () => {
       { library, assetUrl: noAssets, loadSource: async () => '![Remote chart](https://example.com/chart.png)' },
       alphabet,
     );
-    await vi.waitFor(() => expect(content(page).querySelector('img')).not.toBeNull());
+    await ready(page);
     content(page).querySelector('img')!.dispatchEvent(new Event('error')); // what the browser does on a 404/offline
     expect(content(page).querySelector('img')).toBeNull();
     expect(text(content(page).querySelector('.missing-image'))).toBe('Remote chart (image could not be loaded)');
@@ -227,37 +254,38 @@ describe('heading anchors', () => {
     container.remove();
   });
 
-  it('opens a book at the requested heading once its content is ready', async () => {
-    const scrolled: string[] = [];
-    Element.prototype.scrollIntoView = function (this: Element) {
-      scrolled.push(this.id);
-    };
+  it('opens a book at the page of the requested heading once its pages are ready', async () => {
+    const log: string[] = [];
     go('#/book/languages/russian/a1/alphabet#study-tips');
-    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => ALPHABET_MD });
-    await vi.waitFor(() => expect(scrolled.length).toBeGreaterThan(0));
-    expect(new Set(scrolled)).toEqual(new Set(['study-tips'])); // (jsdom also fires its own hashchange, hence "at least once")
+    unmount = mountApp(container, library, {
+      assetUrl: noAssets,
+      loadSource: async () => ALPHABET_MD,
+      createPaginator: fakePaginator(log),
+    });
+    await vi.waitFor(() => expect(log).toContain('element:study-tips'));
+    // (jsdom also fires its own hashchange, hence "at least once")
+    expect(new Set(log.filter((entry) => entry.startsWith('element:')))).toEqual(new Set(['element:study-tips']));
   });
 
   it('moves between headings of the open book without re-rendering it', async () => {
-    const scrolled: string[] = [];
-    Element.prototype.scrollIntoView = function (this: Element) {
-      scrolled.push(this.id);
-    };
+    const log: string[] = [];
     const loadSource = vi.fn<SourceLoader>(async () => ALPHABET_MD);
     go('#/book/languages/russian/a1/alphabet');
-    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource });
-    await vi.waitFor(() => expect(container.querySelector('.prose')).not.toBeNull());
+    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource, createPaginator: fakePaginator(log) });
+    await vi.waitFor(() => expect(container.querySelector('[aria-busy="false"] .prose')).not.toBeNull());
     const prose = container.querySelector('.prose');
+    await new Promise((r) => setTimeout(r, 20)); // let jsdom's own hashchange settle
+    log.length = 0;
 
     go('#/book/languages/russian/a1/alphabet#overview');
     go('#/book/languages/russian/a1/alphabet#study-tips');
-
-    expect(scrolled).toEqual(['overview', 'study-tips']);
+    expect(log.filter((entry) => entry.startsWith('element:'))).toEqual(['element:overview', 'element:study-tips']);
     expect(container.querySelector('.prose')).toBe(prose); // same DOM: not rebuilt
     expect(loadSource).toHaveBeenCalledTimes(1);
 
-    go('#/book/languages/russian/a1/alphabet'); // anchor removed → back to the top
-    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+    log.length = 0;
+    go('#/book/languages/russian/a1/alphabet'); // anchor removed → back to the first page
+    expect(log).toContain('goTo:0');
     expect(container.querySelector('.prose')).toBe(prose);
   });
 
@@ -270,5 +298,191 @@ describe('heading anchors', () => {
     await vi.waitFor(() => expect(container.querySelector('.prose a')).not.toBeNull());
     expect(container.querySelector('.prose a')?.getAttribute('href')).toBe('#/book/languages/russian/a1/alphabet#two');
     expect(text(container.querySelector('#two'))).toBe('Two');
+  });
+});
+
+describe('pagination controls', () => {
+  let container: HTMLElement;
+  let unmount: (() => void) | undefined;
+
+  /** Pages the view can turn: remembers its state and tells listeners, like the real paginator. */
+  function statefulPaginator(log: string[], pageCount = 4): PaginatorFactory {
+    return async () => {
+      let page = 0;
+      const listeners = new Set<(state: { page: number; pageCount: number }) => void>();
+      const go = (target: number) => {
+        const next = Math.min(Math.max(target, 0), pageCount - 1);
+        if (next === page) return false;
+        page = next;
+        listeners.forEach((l) => l({ page, pageCount }));
+        return true;
+      };
+      const paginator: Paginator = {
+        get page() {
+          return page;
+        },
+        pageCount,
+        goTo: (p) => void go(p),
+        next: () => (log.push('next'), go(page + 1)),
+        prev: () => (log.push('prev'), go(page - 1)),
+        pageOf: () => 0,
+        goToElement: () => {},
+        refresh: () => {},
+        onChange: (l) => (listeners.add(l), () => listeners.delete(l)),
+        destroy: () => void log.push('destroy'),
+      };
+      return paginator;
+    };
+  }
+
+  const indicator = () => container.querySelector('[data-testid="page-indicator"]')?.textContent;
+  const button = (kind: 'prev' | 'next') => container.querySelector<HTMLButtonElement>(`[data-testid="${kind}-page"]`)!;
+  const key = (name: string, init: KeyboardEventInit = {}, target: EventTarget = document.body) =>
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init }));
+
+  async function openBook(log: string[], source = ALPHABET_MD) {
+    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    unmount = mountApp(container, library, {
+      assetUrl: noAssets,
+      loadSource: async () => source,
+      createPaginator: statefulPaginator(log),
+    });
+    await vi.waitFor(() => expect(indicator()).toBeTruthy());
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+  });
+  afterEach(() => {
+    unmount?.();
+    unmount = undefined;
+    container.remove();
+  });
+
+  it('shows the book on a page sheet with the page indicator and navigation buttons', async () => {
+    await openBook([]);
+    expect(container.querySelector('.book')).not.toBeNull();
+    expect(container.querySelector('.book__clip > .prose')).not.toBeNull();
+    expect(indicator()).toBe('1 / 4');
+    expect(container.querySelector('[data-testid="page-indicator"]')?.getAttribute('aria-label')).toBe('Page 1 of 4');
+    expect(button('prev').disabled).toBe(true); // nothing before the first page
+    expect(button('next').disabled).toBe(false);
+  });
+
+  it('the buttons turn pages and the indicator and buttons follow', async () => {
+    const log: string[] = [];
+    await openBook(log);
+    button('next').click();
+    button('next').click();
+    expect(indicator()).toBe('3 / 4');
+    expect(button('prev').disabled).toBe(false);
+    button('next').click();
+    expect(indicator()).toBe('4 / 4');
+    expect(button('next').disabled).toBe(true); // last page
+    button('prev').click();
+    expect(indicator()).toBe('3 / 4');
+    expect(log.filter((l) => l === 'next')).toHaveLength(3);
+    expect(log.filter((l) => l === 'prev')).toHaveLength(1);
+  });
+
+  it('the left and right arrow keys turn pages', async () => {
+    const log: string[] = [];
+    await openBook(log);
+    key('ArrowRight');
+    key('ArrowRight');
+    expect(indicator()).toBe('3 / 4');
+    key('ArrowLeft');
+    expect(indicator()).toBe('2 / 4');
+    for (let i = 0; i < 6; i++) key('ArrowLeft');
+    expect(indicator()).toBe('1 / 4'); // the limits hold
+    for (let i = 0; i < 9; i++) key('ArrowRight');
+    expect(indicator()).toBe('4 / 4');
+  });
+
+  it('arrow keys are left alone with modifiers, while typing, or for other keys', async () => {
+    const log: string[] = [];
+    await openBook(log);
+    key('ArrowRight', { ctrlKey: true });
+    key('ArrowRight', { altKey: true });
+    key('ArrowRight', { shiftKey: true });
+    key('ArrowRight', { metaKey: true });
+    key('ArrowDown');
+    key('PageDown');
+    const input = document.createElement('input');
+    document.body.append(input);
+    key('ArrowRight', {}, input);
+    input.remove();
+    expect(log).toEqual([]);
+    expect(indicator()).toBe('1 / 4');
+  });
+
+  it('prevents the default action of the arrow keys it handles', async () => {
+    await openBook([]);
+    const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('releases the paginator and the keyboard shortcuts when the user leaves the book', async () => {
+    const log: string[] = [];
+    await openBook(log);
+    window.location.hash = '#/';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(log).toContain('destroy');
+    log.length = 0;
+    key('ArrowRight');
+    expect(log).toEqual([]); // no handler left behind
+  });
+
+  it('destroys a paginator that finishes after the user already left', async () => {
+    const log: string[] = [];
+    let release!: () => void;
+    const slow: PaginatorFactory = async (...args) => {
+      await new Promise<void>((resolve) => (release = resolve));
+      return statefulPaginator(log)(...args);
+    };
+    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => ALPHABET_MD, createPaginator: slow });
+    await vi.waitFor(() => expect(typeof release).toBe('function'));
+    window.location.hash = '#/';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    release();
+    await vi.waitFor(() => expect(log).toContain('destroy'));
+    expect(container.querySelector('.book')).toBeNull(); // and nothing of the book is shown on the home page
+  });
+
+  it('shows an error if the book cannot be paginated', async () => {
+    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    unmount = mountApp(container, library, {
+      assetUrl: noAssets,
+      loadSource: async () => ALPHABET_MD,
+      createPaginator: async () => {
+        throw new Error('layout failed');
+      },
+    });
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    expect(container.textContent).toContain('layout failed');
+  });
+
+  it('applies the book\'s chapterBreak to the rendered pages', async () => {
+    const twoChapters = '## One\n\ntext\n\n## Two\n\ntext\n\n<!-- pagebreak -->\n\n## Three';
+    // "Lesson 1" inherits chapterBreak "h2" from the fixture config; "Alphabet" sets "none".
+    window.location.hash = '#/book/languages/russian/a1/lesson-1';
+    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => twoChapters, createPaginator: statefulPaginator([]) });
+    await vi.waitFor(() => expect(indicator()).toBeTruthy());
+    expect([...container.querySelectorAll('.page-start')].map((e) => e.textContent)).toEqual(['Two', 'Three']);
+    unmount();
+
+    window.location.hash = '#/book/languages/russian/a1/alphabet';
+    unmount = mountApp(container, library, { assetUrl: noAssets, loadSource: async () => twoChapters, createPaginator: statefulPaginator([]) });
+    await vi.waitFor(() => expect(indicator()).toBeTruthy());
+    expect([...container.querySelectorAll('.page-start')].map((e) => e.textContent)).toEqual(['Three']); // only the manual break
+  });
+
+  it('removes tab stops that only made sense for scrolling code blocks and tables', async () => {
+    await openBook([], '```\ncode\n```\n\n| a |\n|---|\n| b |');
+    expect(container.querySelector('pre')?.hasAttribute('tabindex')).toBe(false);
+    expect(container.querySelector('.table-wrap')?.hasAttribute('tabindex')).toBe(false);
   });
 });

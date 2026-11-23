@@ -1,7 +1,30 @@
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tests/unit/**/*.test.ts'],
+    projects: [
+      {
+        // Logic and DOM-structure tests, in jsdom.
+        test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.test.ts'],
+        },
+      },
+      {
+        // Pagination relies on CSS multi-column layout and real measurements, which jsdom cannot
+        // do: these tests run in Chromium (through Playwright).
+        test: {
+          name: 'browser',
+          include: ['tests/browser/**/*.test.ts'],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+    ],
   },
 });

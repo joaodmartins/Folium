@@ -1,5 +1,6 @@
 import { resolveAsset, type AssetResolver } from './assets';
 import type { Library } from './library';
+import type { PaginatorFactory } from './reader/paginator/types';
 import { createSourceLoader, loadFromManifest, type SourceLoader } from './reader/source';
 import { parseHash, resolveRoute, type ResolvedRoute } from './router';
 import { renderBookView } from './views/book-view';
@@ -12,13 +13,21 @@ export interface AppOptions {
   assetUrl?: AssetResolver;
   /** Loads a book's Markdown. Default: the manifest's lazy `book.load()`, cached per app. */
   loadSource?: SourceLoader;
+  /** Paginator engine for books. Default: CSS columns. */
+  createPaginator?: PaginatorFactory;
   /** Window to listen on (defaults to the global one). */
   win?: Window;
 }
 
 /** Renders the view for a hash against the library. */
-export function renderRoute(hash: string, library: Library, assetUrl: AssetResolver, loadSource?: SourceLoader): Page {
-  return renderResolved(resolveRoute(parseHash(hash), library), { library, assetUrl, loadSource });
+export function renderRoute(
+  hash: string,
+  library: Library,
+  assetUrl: AssetResolver,
+  loadSource?: SourceLoader,
+  createPaginator?: PaginatorFactory,
+): Page {
+  return renderResolved(resolveRoute(parseHash(hash), library), { library, assetUrl, loadSource, createPaginator });
 }
 
 function renderResolved(route: ResolvedRoute, context: ViewContext): Page {
@@ -44,7 +53,7 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
 
   const loadSource = options.loadSource ?? createSourceLoader(loadFromManifest);
 
-  let current: { bookId: string; page: Page } | undefined;
+  let current: { bookId?: string; page: Page } | undefined;
 
   const render = () => {
     const route = resolveRoute(parseHash(win.location.hash), library);
@@ -55,8 +64,9 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
       return;
     }
 
-    const page = renderResolved(route, { library, assetUrl, loadSource });
-    current = route.name === 'book' ? { bookId: route.book.id, page } : undefined;
+    current?.page.destroy?.();
+    const page = renderResolved(route, { library, assetUrl, loadSource, createPaginator: options.createPaginator });
+    current = { bookId: route.name === 'book' ? route.book.id : undefined, page };
     container.replaceChildren(page.element);
     win.document.title = page.title;
     win.scrollTo?.(0, 0);
@@ -66,5 +76,9 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
 
   win.addEventListener('hashchange', render);
   render();
-  return () => win.removeEventListener('hashchange', render);
+  return () => {
+    win.removeEventListener('hashchange', render);
+    current?.page.destroy?.();
+    current = undefined;
+  };
 }

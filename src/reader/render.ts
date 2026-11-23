@@ -1,12 +1,17 @@
 import { splitFrontmatter } from '../../tools/vite-plugin-folium/split-frontmatter';
+import type { ChapterBreak } from '../../tools/vite-plugin-folium/types';
 import { assignHeadingIds, type Heading } from './headings';
 import { createMarkdown, type Markdown } from './markdown';
+import { pageBreakPlugin } from './pagebreak';
+import { applyPageBreaks } from './pages';
 import { resolveLinksAndImages, type ResolveContext } from './resolve';
 import { sanitizeHtml } from './sanitize';
 
 export interface RenderContext extends ResolveContext {
   /** Title of the book, used to avoid showing it twice (page header + first H1). */
   title: string;
+  /** Which headings start a new page (the book's `chapterBreak`). Default: "none". */
+  chapterBreak?: ChapterBreak;
 }
 
 export interface RenderedBook {
@@ -23,7 +28,7 @@ let markdown: Markdown | undefined;
  * markdown-it → sanitize → resolve relative links/images → heading ids → tidy-ups.
  */
 export function renderMarkdown(source: string, ctx: RenderContext): RenderedBook {
-  markdown ??= createMarkdown();
+  markdown ??= createMarkdown([pageBreakPlugin]);
   const { body } = splitFrontmatter(source);
 
   const element = document.createElement('div');
@@ -33,6 +38,7 @@ export function renderMarkdown(source: string, ctx: RenderContext): RenderedBook
   resolveLinksAndImages(element, ctx);
   const headings = assignHeadingIds(element);
   tidy(element, headings, ctx.title);
+  applyPageBreaks(element, ctx.chapterBreak ?? 'none');
   return { element, headings };
 }
 

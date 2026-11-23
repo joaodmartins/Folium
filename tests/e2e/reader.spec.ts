@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // Runs against the real Library/ examples:
 //   Languages/Russian/A1/Alphabet.md  (headings, table, list)
@@ -8,6 +8,40 @@ const ALPHABET = '/#/book/languages/russian/a1/alphabet';
 const LESSON = '/#/book/university/operating-systems/theory/lesson-1';
 
 const content = (page: Page) => page.getByTestId('book-content');
+
+/** True when some part of the element (any of its boxes, if it spans pages) is in the visible page window. */
+const onScreen = (element: Locator) =>
+  element.first().evaluate((el) => {
+    const view = document.querySelector('.book__clip')!.getBoundingClientRect();
+    return [...el.getClientRects()].some((r) => r.width > 0 && r.right > view.left + 1 && r.left < view.right - 1);
+  });
+
+/** Clicks a page button and waits for the page-turn animation to finish. */
+async function turn(page: Page, button: Locator) {
+  await button.click();
+  await page.locator('.book__pages').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined))));
+}
+
+/** Starts from the first page and turns pages until the element is on screen. */
+async function showPageWith(page: Page, element: Locator) {
+  const prev = page.getByTestId('prev-page');
+  const next = page.getByTestId('next-page');
+  await expect(page.getByTestId('page-indicator')).toHaveText(/^\d+ \/ \d+$/); // the book is paginated and ready
+  while (!(await prev.isDisabled())) await turn(page, prev);
+  for (let i = 0; i < 30 && !(await onScreen(element)); i++) {
+    if (await next.isDisabled()) break;
+    await turn(page, next);
+  }
+  expect(await onScreen(element)).toBe(true);
+}
+async function expectInsideScreen(element: Locator, width: number) {
+  await expect
+    .poll(async () => {
+      const box = (await element.first().boundingBox())!;
+      return box.x >= 0 && box.x + box.width <= width;
+    })
+    .toBe(true);
+}
 const isPreview = process.env.E2E_TARGET === 'preview';
 
 test.describe('reading a book', () => {
@@ -64,7 +98,7 @@ test.describe('reading a book', () => {
       return { font: getComputedStyle(el).fontFamily, white: getComputedStyle(el).whiteSpace, bg: getComputedStyle(pre).backgroundColor };
     });
     expect(style.font).toMatch(/mono|consolas|menlo/i);
-    expect(style.white).toBe('pre');
+    expect(style.white).toMatch(/^pre/); // pages do not scroll sideways, so long lines wrap ("pre-wrap")
     expect(style.bg).not.toBe('rgba(0, 0, 0, 0)'); // highlighted block
   });
 
@@ -85,15 +119,13 @@ test.describe('reading a book', () => {
     expect(box.width).toBeLessThanOrEqual(proseBox.width + 1);
   });
 
-  test('anchors open a book at a heading', async ({ page }) => {
-    await page.setViewportSize({ width: 800, height: 320 });
+  test('anchors open a book at the page of a heading', async ({ page }) => {
     await page.goto(`${LESSON}#creating-a-process`);
     const heading = content(page).getByRole('heading', { name: 'Creating a process' });
-    await expect(heading).toBeInViewport();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(heading).toBeInViewport(); // the page with the heading is the one shown
     await expect(page.getByRole('heading', { level: 1, name: /not found/i })).toHaveCount(0);
 
-    // moving to another heading of the open book does not reload the content
+    // moving to another heading of the open book turns to its page without rebuilding the book
     await page.evaluate(() => ((window as unknown as { __prose: Element }).__prose = document.querySelector('.prose')!));
     await page.evaluate(() => (location.hash = '#/book/university/operating-systems/theory/lesson-1#what-is-an-operating-system'));
     await expect(content(page).getByRole('heading', { name: 'What is an operating system?' })).toBeInViewport();
@@ -184,21 +216,21 @@ test.describe('mobile', () => {
     });
   }
 
-  test('images stay inside the screen and tables/code scroll inside their own box', async ({ page }) => {
+  test('images, code and tables stay inside the screen (code and tables wrap instead of scrolling)', async ({ page }) => {
     await page.goto(LESSON);
     const img = content(page).getByRole('img');
-    await expect(img).toBeVisible();
-    const box = (await img.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(375);
+    await showPageWith(page, img);
+    await expectInsideScreen(img, 375); // (polls: the page may still be sliding into place)
 
     const pre = content(page).locator('pre');
-    expect(await pre.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto');
+    await showPageWith(page, pre);
+    expect(await pre.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 
     await page.goto(ALPHABET);
-    const wrap = content(page).locator('.table-wrap');
-    await expect(wrap).toBeVisible();
-    expect(await wrap.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto');
+    const table = content(page).getByRole('table');
+    await expect(table).toBeAttached(); // the new book replaced the previous one (same document: only the hash changed)
+    await showPageWith(page, table);
+    await expectInsideScreen(table, 375);
   });
 });
 

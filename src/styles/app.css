@@ -245,34 +245,149 @@ h1:focus {
 
 /* ---------- Book page ---------- */
 
+/* The book page fills the screen and never scrolls as a whole: the book turns pages instead. */
+.page--book {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 30rem;
+  max-width: 50rem;
+  padding-bottom: 0.75rem;
+}
+
 .book-header {
-  display: grid;
-  grid-template-columns: minmax(8rem, 14rem) 1fr;
-  gap: 1.5rem;
-  align-items: start;
-  margin: 1.25rem 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.75rem 0 1rem;
 }
 
 .book-header .cover {
+  flex: none;
+  width: 2.75rem;
   aspect-ratio: 3 / 4;
-  border-radius: var(--radius);
+  border-radius: 6px;
   box-shadow: var(--shadow);
+  font-size: 1.25rem;
+}
+
+.book-header__text {
+  min-width: 0;
+}
+
+.book-header .page__title {
+  font-size: clamp(1.3rem, 3vw, 1.75rem);
+}
+
+.book-header .page__lead {
+  font-size: 1rem;
+  margin-top: 0.1rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .details {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
-  margin: 1.25rem 0 0;
-  font-size: 0.95rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+}
+
+.details dt,
+.details dd {
+  display: inline;
 }
 
 .details dt {
   color: var(--text-muted);
 }
 
+.details dt::after {
+  content: ':';
+}
+
 .details dd {
+  margin: 0 1rem 0 0.2rem;
+}
+
+.details dd:last-child {
+  margin-right: 0; /* a trailing margin would stick out of a full line */
+}
+
+/* ---------- The book: one page at a time ---------- */
+
+.book {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 46rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.book__window {
+  flex: 1;
+  min-height: 0;
+  padding: clamp(1.25rem, 4vh, 2.5rem) clamp(1.25rem, 6vw, 3rem) 0.5rem;
+}
+
+/* One page: its size is what the paginator reads, and what clips the neighbouring pages. */
+.book__clip {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The paginator sets width, height and the columns; this is the look of the page content. */
+.book__pages {
   margin: 0;
+  will-change: transform;
+}
+
+.book__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.book__indicator {
+  min-width: 5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.book__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem; /* comfortable touch target */
+  padding: 0 0.9rem;
+  justify-content: center;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.book__nav:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.book__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* ---------- Misc ---------- */
@@ -298,12 +413,54 @@ h1:focus {
 }
 
 @media (max-width: 36rem) {
-  .book-header {
-    grid-template-columns: 1fr;
+  .page--book {
+    padding-inline: 0.5rem;
   }
 
-  .book-header .cover {
-    max-width: 10rem;
+  .page--book .breadcrumbs {
+    padding-inline: 0.5rem;
+  }
+
+  .book-header {
+    margin: 0.5rem 0.5rem 0.75rem;
+  }
+
+  .book-header .page__lead {
+    display: none;
+  }
+
+  .book {
+    border-radius: 10px;
+  }
+
+  .book__nav-label {
+    display: none;
+  }
+}
+
+/* Short screens (a phone held sideways): the book gets all the height; the title stays in the breadcrumbs. */
+@media (max-height: 34rem) {
+  .page--book {
+    min-height: 0;
+    padding-top: 0.5rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .page--book .book-header {
+    position: absolute; /* hidden visually, still there for screen readers */
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .book__window {
+    padding-top: 0.9rem;
+  }
+
+  .book__footer {
+    padding-block: 0.25rem 0.4rem;
   }
 }
 
@@ -315,9 +472,44 @@ h1:focus {
 
 /* ---------- Reader (book content) ---------- */
 
+/*
+ * Page-breaking rules. In a paginated book every column is a page, so these decide where
+ * pages may end. They are preferences: an element taller than a page is still split.
+ */
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  break-after: avoid; /* a heading is never left alone at the bottom of a page */
+}
+
+.prose p {
+  orphans: 2;
+  widows: 2;
+}
+
+.prose pre,
+.prose blockquote,
+.prose figure,
+.prose img,
+.prose li,
+.prose tr {
+  break-inside: avoid;
+}
+
+.prose .page-start {
+  break-before: column; /* <!-- pagebreak --> and chapter headings */
+  margin-top: 0; /* the top of a page has no extra space */
+}
+
 .reader {
-  max-width: 42rem; /* ~65 characters per line */
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
 }
 
 .reader__status,
@@ -460,7 +652,6 @@ h1:focus {
 
 .prose pre {
   padding: 1rem 1.1rem;
-  overflow-x: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
@@ -469,19 +660,24 @@ h1:focus {
   font-size: 0.95rem;
 }
 
+/* Pages do not scroll sideways: long lines wrap, so all of the code stays readable. */
 .prose pre code {
   padding: 0;
   font-size: inherit;
   background: none;
   border: 0;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .prose img {
   display: block;
   max-width: 100%;
+  /* never taller than a page (--page-h is set by the paginator), so a big image is shown whole */
+  max-height: calc(var(--page-h, 100vh) - 2rem);
+  width: auto;
   height: auto;
-  margin: 1.4em auto;
+  margin: 1rem auto;
   border-radius: 6px;
 }
 
@@ -490,7 +686,7 @@ h1:focus {
 }
 
 .prose .table-wrap {
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .prose table {
@@ -506,6 +702,7 @@ h1:focus {
   padding: 0.5em 0.8em;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere; /* a wide table shrinks to the page instead of overflowing it */
 }
 
 .prose th {

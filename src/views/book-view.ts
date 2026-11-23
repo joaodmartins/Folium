@@ -2,7 +2,10 @@ import type { Book } from '../../tools/vite-plugin-folium/types';
 import { bookCrumbs, renderBreadcrumbs } from '../components/breadcrumbs';
 import { renderCover } from '../components/cover';
 import { el } from '../dom';
-import { scrollToAnchor } from '../reader/anchors';
+import { renderBookSheet } from '../components/book-sheet';
+import { findAnchorTarget } from '../reader/anchors';
+import { columnsPaginator } from '../reader/paginator/columns';
+import type { Paginator } from '../reader/paginator/types';
 import { loadFromManifest } from '../reader/source';
 import { categoryHash } from '../router';
 import type { Page, ViewContext } from './types';
@@ -26,7 +29,7 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
 
   const element = el(
     'main',
-    { class: 'page', id: 'main' },
+    { class: 'page page--book', id: 'main' },
     renderBreadcrumbs(bookCrumbs(library, book)),
     el(
       'header',
@@ -45,7 +48,24 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
 
   let currentAnchor = anchor;
   let rendered: HTMLElement | undefined;
-  let attempt = 0; // only the latest attempt may touch the page (retries, slow loads)
+  let paginator: Paginator | undefined;
+  let removeKeys: (() => void) | undefined;
+  let attempt = 0; // only the latest attempt may touch the page (retries, slow loads, leaving the page)
+
+  const release = () => {
+    paginator?.destroy();
+    paginator = undefined;
+    removeKeys?.();
+    removeKeys = undefined;
+  };
+
+  /** Shows the page that holds the heading (or the first page when there is no anchor). */
+  const goToAnchor = (target: string | undefined) => {
+    if (!paginator || !rendered) return;
+    const heading = target ? findAnchorTarget(rendered, target) : null;
+    if (heading) paginator.goToElement(heading);
+    else if (!target) paginator.goTo(0);
+  };
 
   const showLoading = () => {
     content.setAttribute('aria-busy', 'true');
@@ -71,6 +91,7 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
   async function load() {
     const mine = ++attempt;
     rendered = undefined;
+    release();
     showLoading();
     try {
       const loadSource = ctx.loadSource ?? loadFromManifest;
@@ -84,6 +105,7 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
         bookPath: book.path,
         findBookByPath: (path) => library.getBookByPath(path),
         assetUrl: (path) => assetUrl(path),
+        chapterBreak: book.meta.chapterBreak,
       });
       // Images that fail to load (broken URL, offline…) get a visible placeholder instead.
       result.element.addEventListener(
@@ -94,10 +116,27 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
         true,
       );
 
+      // Pages never scroll: code and tables wrap instead, so they are not tab stops.
+      for (const el of result.element.querySelectorAll('pre, .table-wrap')) el.removeAttribute('tabindex');
+
+      const sheet = renderBookSheet(result.element);
+      sheet.root.style.visibility = 'hidden'; // laid out (so it can be measured) but not shown unpaginated
+      content.replaceChildren(sheet.root);
+
+      const created = await (ctx.createPaginator ?? columnsPaginator)(sheet.viewport, result.element);
+      if (mine !== attempt) return created.destroy(); // the user moved on while we were measuring
+      paginator = created;
       rendered = result.element;
+      sheet.root.style.visibility = '';
       content.setAttribute('aria-busy', 'false');
-      content.replaceChildren(result.element);
-      if (currentAnchor) scrollToAnchor(rendered, currentAnchor);
+
+      sheet.update({ page: created.page, pageCount: created.pageCount });
+      created.onChange((state) => sheet.update(state));
+      sheet.prevButton.addEventListener('click', () => created.prev());
+      sheet.nextButton.addEventListener('click', () => created.next());
+      removeKeys = listenForArrowKeys(sheet.root, created);
+
+      goToAnchor(currentAnchor);
     } catch (error) {
       if (mine === attempt) showError(error);
     }
@@ -110,9 +149,29 @@ export function renderBookView(ctx: ViewContext, book: Book, anchor?: string): P
     element,
     onAnchorChange(next) {
       currentAnchor = next;
-      if (rendered) scrollToAnchor(rendered, next); // still loading: scrolled once the content is ready
+      goToAnchor(next); // while loading: applied once the pages are ready
+    },
+    destroy() {
+      attempt++; // any load still in flight must not touch the page
+      release();
     },
   };
+}
+
+/** ← / → turn pages while the book is on screen (not while typing, nor with modifier keys). */
+function listenForArrowKeys(sheet: HTMLElement, paginator: Paginator): () => void {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    if (!sheet.isConnected) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    if (event.key === 'ArrowRight') paginator.next();
+    else paginator.prev();
+  };
+  document.addEventListener('keydown', onKeyDown);
+  return () => document.removeEventListener('keydown', onKeyDown);
 }
 
 function replaceBrokenImage(img: HTMLImageElement) {

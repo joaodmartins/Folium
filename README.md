@@ -12,23 +12,25 @@ The project is intentionally simple: no backend, no database, no authentication,
 
 ## Current status
 
-**Phases 0 to 3 of the plan are done.** What exists today:
+**Phases 0 to 4 of the plan are done.** What exists today:
 
 - Project tooling (Vite, TypeScript, Vitest, Playwright).
 - A navigable library built from the manifest: home with the top-level categories, category pages at any depth (sub-categories and books, with breadcrumbs), a book page, and a "not found" page. Navigation uses hash routes, so it works on GitHub Pages and with the browser's back/forward buttons:
   `#/`, `#/category/languages/russian`, `#/book/languages/russian/a1/alphabet` (the ids are the manifest ids).
 - A Markdown reader on the book page: the book's `.md` is loaded only when the book is opened (via the manifest's `book.load()`), rendered with markdown-it, sanitized with DOMPurify and shown with reading typography. It supports headings, emphasis, lists, blockquotes, tables, code blocks (not highlighted yet), horizontal rules, links and images. Images and links are resolved relative to the Markdown file: `![d](images/d.png)` and `[next](<Lesson 2.md>)` work, and links to other books use the app's routes. Every heading gets a unique id, so `#/book/<id>#<heading>` opens a book at that heading.
+- Paginated reading: a book is shown as pages inside a "sheet" (one page at a time, no scrolling of the whole screen), with previous/next buttons, a page indicator (`3 / 12`) and the ← / → keys. Pages are CSS columns (one column = one page): the browser breaks lines and pages, and Folium measures the result, waits for fonts and images, and keeps the reader at the same place in the text when the window is resized or the device is rotated. A heading link opens the page that contains it.
+- Page breaks: `<!-- pagebreak -->` on its own line starts a new page; the book's `chapterBreak` (`h1`, `h2` or `none`, default `h1`) makes headings of that level (and above) start a new page.
 - Covers: a book/category `cover` image from `Library/` is shown when it exists, otherwise a generated cover.
 - A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): pagination and the book-like page layout, a table-of-contents UI, math (KaTeX), syntax highlighting, theme switching and reading settings. The Markdown is shown as one scrolling page for now.
+What does **not** exist yet (planned for later phases): a table-of-contents UI, math (KaTeX), syntax highlighting, theme switching and reading settings, saved reading position, and the page header/chapter title. The page number depends on the screen size and text size, so it is not the same on every device.
 
 ## Technologies
 
 - [Vite](https://vite.dev/) and TypeScript (vanilla, no UI framework)
 - [Vitest](https://vitest.dev/) for unit tests
-- [Playwright](https://playwright.dev/) for end-to-end tests, and [jsdom](https://github.com/jsdom/jsdom) for DOM unit tests, [markdown-it](https://github.com/markdown-it/markdown-it) and [DOMPurify](https://github.com/cure53/DOMPurify) for rendering books
+- [Playwright](https://playwright.dev/) for end-to-end tests (also the browser behind Vitest's browser mode), and [jsdom](https://github.com/jsdom/jsdom) for DOM unit tests, [markdown-it](https://github.com/markdown-it/markdown-it) and [DOMPurify](https://github.com/cure53/DOMPurify) for rendering books
 - npm
 - GitHub Pages as the future deployment target
 
@@ -43,8 +45,8 @@ npx playwright install chromium   # one-off, needed only for e2e tests
 npm run dev       # start the dev server (http://localhost:5173)
 npm run build     # type-check and build to dist/
 npm run preview   # serve the production build
-npm test          # unit tests (Vitest)
-npm run e2e       # end-to-end tests (Playwright) against the dev server
+npm test          # unit tests (Vitest: jsdom) + pagination tests (Vitest browser mode: Chromium)
+npm run e2e       # end-to-end tests (Playwright) against the dev server (the real Library/ and a fixture library)
 npm run e2e:preview  # the same tests against the production build
 npm run typecheck # TypeScript only
 ```
@@ -63,12 +65,15 @@ src/                     Application code
   app.ts, main.ts        Mounts the app and renders the current route
   views/                 Library (home), category, book and not-found views
   components/            Breadcrumbs, cards, covers
-  reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, source loader
+  reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, page breaks, source loader
+  reader/paginator/      The Paginator interface and its CSS-columns implementation
   styles/                CSS (design tokens, base styles)
 tests/
-  unit/                  Vitest tests
+  unit/                  Vitest tests in jsdom (logic, DOM structure)
+  browser/               Vitest tests in real Chromium (pagination needs real layout)
   e2e/                   Playwright tests
-  fixtures/library/      Small library used by tests
+  fixtures/library/      Small library used by the unit tests
+  fixtures/e2e-library/  Books written to stress pagination, used by the *.fixture.spec.ts e2e tests
 .github/workflows/       Future deployment workflow
 ```
 

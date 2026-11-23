@@ -1,7 +1,9 @@
 node_modules
 dist
+dist-e2e
 .vite
 playwright-report
 test-results
 *.log
 .DS_Store
+.vitest
