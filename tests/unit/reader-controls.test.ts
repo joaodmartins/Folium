@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp } from '../../src/app';
 import { createLibrary } from '../../src/library';
 import type { Paginator, PaginatorFactory, PageState } from '../../src/reader/paginator/types';
 import { scanFixture } from './helpers';
+
+// The reader loads its Markdown renderer (markdown-it, highlight.js, KaTeX) on demand. Loading it here, once, keeps the
+// first test from paying for a cold start (slow on a fresh install or a CI runner) inside `vi.waitFor`'s default 1 s.
+beforeAll(() => import('../../src/reader/render'), 60_000);
 
 const library = createLibrary(scanFixture().manifest);
 

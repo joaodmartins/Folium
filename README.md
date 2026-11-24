@@ -8,11 +8,11 @@ Folium is a personal project that turns Markdown files into digital books shown 
 
 Write content only in Markdown (`.md`), keep it in this repository, and let the website present it as a library of books: categories and subcategories, a page-based reader, a table of contents, and Light, Dark and Sepia reading modes. Adding a book should only mean adding a `.md` file (plus optional images and metadata) and pushing.
 
-The project is intentionally simple: no backend, no database, no authentication, no APIs. Everything is a static site that can be hosted for free (for example on GitHub Pages).
+The project is intentionally simple: no backend, no database, no authentication, no APIs. Everything is a static site, published for free on GitHub Pages: **https://joaodmartins.github.io/Folium/**
 
 ## Current status
 
-**Phases 0 to 4 of the plan are done, plus the "physical book" reading experience.** What exists today:
+**The library, the reader and the automatic publication are done.** What exists today:
 
 - Project tooling (Vite, TypeScript, Vitest, Playwright).
 - A navigable library built from the manifest: home with the top-level categories, category pages at any depth (sub-categories and books, with breadcrumbs), a book page, and a "not found" page. Navigation uses hash routes, so it works on GitHub Pages and with the browser's back/forward buttons:
@@ -40,7 +40,7 @@ What does **not** exist yet (planned for later phases): reading settings (font s
 - [Vitest](https://vitest.dev/) for unit tests
 - [Playwright](https://playwright.dev/) for end-to-end tests (also the browser behind Vitest's browser mode), and [jsdom](https://github.com/jsdom/jsdom) for DOM unit tests, [markdown-it](https://github.com/markdown-it/markdown-it) and [DOMPurify](https://github.com/cure53/DOMPurify) for rendering books
 - npm
-- GitHub Pages as the future deployment target
+- GitHub Pages and GitHub Actions for publishing
 
 ## Getting started
 
@@ -48,7 +48,7 @@ Requires Node.js 20+ (developed with Node 24).
 
 ```bash
 npm install
-npx playwright install chromium   # one-off, needed only for e2e tests
+npx playwright install chromium   # one-off: needed by `npm test` (browser tests) and the e2e tests
 
 npm run dev       # start the dev server (http://localhost:5173)
 npm run build     # type-check and build to dist/
@@ -88,7 +88,7 @@ tests/
   e2e/                   Playwright tests
   fixtures/library/      Small library used by the unit tests
   fixtures/e2e-library/  Books written to stress pagination, used by the *.fixture.spec.ts e2e tests
-.github/workflows/       Future deployment workflow
+.github/workflows/       deploy.yml: publishes the site to GitHub Pages
 ```
 
 ## Adding books
@@ -112,3 +112,16 @@ draft: false                     # true hides the book
 Images, covers and files linked from a book live next to it in `Library/` (for example `Library/Languages/Russian/A1/images/diagram.png`) and are referenced with a path relative to the `.md` file.
 
 Settings resolve in this order, the most specific winning: `folium.config.json` `defaults` → the `"defaults"` of each `_folder.json` from the top folder down → the book's frontmatter. `_folder.json` may also set `title`, `description`, `cover` and `order` for the category itself. Invalid values stop the build with the offending file and field.
+
+## Publishing
+
+The site is published at **https://joaodmartins.github.io/Folium/**. Every push to `main` (or a manual run of the workflow from the *Actions* tab) runs `.github/workflows/deploy.yml`: `npm ci`, `npm run typecheck`, `npm test` and `npm run build`, and then publishes only `dist/` with the official GitHub Pages actions. If a check fails, nothing is published. Runs never overlap: a newer push waits for the one that is deploying. The end-to-end tests are not part of the workflow; run `npm run e2e` and `npm run e2e:preview` locally before pushing.
+
+To publish a new book, add its `.md` file (and images) to `Library/`, commit and push to `main`.
+
+Notes about GitHub Pages:
+
+- The site lives under `/Folium/`, not at the root of a domain. The build uses relative URLs (`base: './'` in `vite.config.ts`), so it works from any path, and navigation uses hash routes (`#/…`), so refreshing any page needs no server rewrite. `npm run e2e:preview` also serves the build under `/Folium/` and checks that nothing is requested from the root.
+- Everything in `Library/` is public, because the repository is the website. Do not put private notes there.
+- Reading progress and the theme are saved in the visitor's browser (`localStorage`): they are not shared between devices.
+- A published page can take a minute or two to show a new version (and the browser may cache the previous one: refresh with Ctrl+Shift+R).

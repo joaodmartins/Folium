@@ -1,0 +1,58 @@
+# Publishes Folium to GitHub Pages (https://joaodmartins.github.io/Folium/) on every push to main.
+# The site is static: `npm run build` produces dist/, and only dist/ is published.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the code; Pages needs `pages: write` and the OIDC token of `id-token: write` to deploy.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A newer run waits for the running one instead of cancelling it half-way
+# (cancelling a deployment can leave the site broken); GitHub drops runs that are queued behind a newer one,
+# so an old commit can never replace a newer publication.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # the version the project is developed and tested with
+          cache: npm
+
+      - run: npm ci
+
+      # `npm test` includes the tests that run in a real browser (pagination needs real layout).
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

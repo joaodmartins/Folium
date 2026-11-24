@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 const usePreview = process.env.E2E_TARGET === 'preview';
 const MAIN_PORT = usePreview ? 4173 : 5173;
 const FIXTURE_PORT = usePreview ? 4174 : 5174;
+const SUBPATH_PORT = 4175;
 const FIXTURE_LIBRARY = 'tests/fixtures/e2e-library';
 
 export default defineConfig({
@@ -19,7 +20,7 @@ export default defineConfig({
     {
       // The real Library/ (the example books).
       name: 'chromium',
-      testIgnore: /\.fixture\.spec\.ts$/,
+      testIgnore: /\.(fixture|subpath)\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -29,6 +30,16 @@ export default defineConfig({
       testMatch: /\.fixture\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${FIXTURE_PORT}` },
     },
+    // The production build served from /Folium/, like GitHub Pages does (only with `e2e:preview`).
+    ...(usePreview
+      ? [
+          {
+            name: 'subpath',
+            testMatch: /\.subpath\.spec\.ts$/,
+            use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${SUBPATH_PORT}/Folium/` },
+          },
+        ]
+      : []),
   ],
   webServer: [
     {
@@ -48,5 +59,16 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
+    ...(usePreview
+      ? [
+          {
+            // (its own output folder: the other servers build into dist/ and dist-e2e/)
+            command: `npm run build -- --outDir dist-subpath && npm run preview -- --outDir dist-subpath --base /Folium/ --port ${SUBPATH_PORT} --strictPort`,
+            url: `http://localhost:${SUBPATH_PORT}/Folium/`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+          },
+        ]
+      : []),
   ],
 });
