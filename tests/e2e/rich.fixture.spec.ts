@@ -52,15 +52,12 @@ const problemsOnView = (page: Page) =>
       if (!inLeft && !inRight) found.add(`${name} not inside a page`);
       if (r.bottom > clip.bottom + 1) found.add(`${name} cut at the bottom`);
     };
-    for (const el of document.querySelectorAll('.book__clip .prose p, .prose li, .prose h2, .prose h3, .prose tr, .prose blockquote, .prose .katex-display')) {
+    for (const el of document.querySelectorAll('.book__clip .prose p, .prose li, .prose h2, .prose h3, .prose .table-wrap, .prose blockquote, .prose .katex-display')) {
       if (el.closest('.katex-display') && !el.matches('.katex-display')) continue;
       for (const r of el.getClientRects()) check(el.tagName + '.' + String(el.className).split(' ')[0], r);
     }
-    for (const pre of document.querySelectorAll('.book__clip .prose pre')) {
-      const range = document.createRange();
-      range.selectNodeContents(pre);
-      for (const r of range.getClientRects()) check('pre line', r);
-    }
+    // A code block scrolls inside its own box: the box is what has to fit its page, not the lines inside it.
+    for (const pre of document.querySelectorAll('.book__clip .prose pre')) for (const r of pre.getClientRects()) check('pre', r);
     return [...found];
   });
 
@@ -168,18 +165,29 @@ test.describe('code', () => {
     expect(new Set(Object.values(colours)).size).toBe(5);
   });
 
-  test('wraps long lines instead of overflowing, and a 160-line listing continues over several pages, whole', async ({ page }) => {
+  test('long lines scroll sideways instead of overflowing, and a 160-line listing is one page tall and scrolls to its end', async ({ page }) => {
     await openRich(page, '#code');
-    let pagesWithListing = 0;
-    let sawEnd = false;
+    let viewsWithListing = 0;
     await forEachView(page, async () => {
       expect(await problemsOnView(page)).toEqual([]);
-      if ((await onScreen(page, 'pre .hljs-comment')).some((x) => x.full.includes('MARK-LONG-CODE-END'))) sawEnd = true;
-      if ((await onScreen(page, 'pre')).length > 0) pagesWithListing++;
+      if ((await onScreen(page, 'pre')).length > 0) viewsWithListing++;
     });
-    expect(pagesWithListing).toBeGreaterThan(3);
-    expect(sawEnd).toBe(true);
-    expect(await page.evaluate(() => [...document.querySelectorAll('.book__clip pre')].every((p) => p.scrollWidth <= p.clientWidth + 1))).toBe(true);
+    expect(viewsWithListing).toBeGreaterThan(0);
+
+    const listing = await page.evaluate(() => {
+      const code = [...document.querySelectorAll<HTMLElement>('.book__clip pre > code')].find((c) => c.textContent!.includes('MARK-LONG-CODE-END'))!;
+      const pre = code.parentElement!;
+      const content = document.querySelector('.book__pages') as HTMLElement;
+      const pages = new Set([...pre.getClientRects()].map((r) => Math.floor((r.left - content.getBoundingClientRect().left + 1) / (content.offsetWidth + 48))));
+      const tall = code.scrollHeight > code.clientHeight;
+      code.scrollTop = code.scrollHeight;
+      const end = [...code.querySelectorAll('.hljs-comment')].find((c) => c.textContent!.includes('MARK-LONG-CODE-END'))!.getBoundingClientRect();
+      const box = code.getBoundingClientRect();
+      return { pages: pages.size, tall, endShown: end.bottom <= box.bottom + 1 && end.top >= box.top - 1, tab: code.getAttribute('tabindex') };
+    });
+    expect(listing).toEqual({ pages: 1, tall: true, endShown: true, tab: '0' });
+    // blocks are not wider than their page; a line that is too long scrolls inside its block
+    expect(await page.evaluate(() => [...document.querySelectorAll('.book__clip pre')].every((p) => p.getBoundingClientRect().width <= (document.querySelector('.book__pages') as HTMLElement).offsetWidth + 1))).toBe(true);
   });
 
   test('code in a list and in a quote is highlighted', async ({ page }) => {
@@ -285,7 +293,7 @@ test.describe('in the whole book', () => {
       expect(await problemsOnView(page)).toEqual([]);
       if ((await onScreen(page, 'p')).some((x) => x.text.includes('The end. MARK'))) last = true;
     });
-    expect(views).toBeGreaterThan(8);
+    expect(views).toBeGreaterThan(5); // (the long listing now scrolls inside one page instead of covering several)
     expect(last).toBe(true);
     expect(errors).toEqual([]);
   });
@@ -300,7 +308,7 @@ test.describe('in the whole book', () => {
       expect(await problemsOnView(page)).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
-    expect(views).toBeGreaterThan(15);
+    expect(views).toBeGreaterThan(8);
     expect(errors).toEqual([]);
   });
 
@@ -332,7 +340,9 @@ test.describe('in the whole book', () => {
         await new Promise((r) => requestAnimationFrame(r));
       }
     });
-    await expect(indicator(page)).toHaveText(new RegExp(`^13–14 / ${total}$`));
+    // six turns from the first view: pages 13–14 (or the last page alone, when the book ends before that)
+    const left = Math.min(12, 2 * Math.floor((total - 1) / 2));
+    await expect(indicator(page)).toHaveText(left + 1 < total ? new RegExp(`^${left + 1}–${left + 2} / ${total}$`) : new RegExp(`^${left + 1} / ${total}$`));
     await turnsDone(page);
     await expect(page.locator('.flip__leaf')).toHaveCount(0);
     expect(await problemsOnView(page)).toEqual([]);
@@ -391,7 +401,7 @@ test.describe('themes', () => {
         const bg = getComputedStyle(pre).backgroundColor;
         const tokens = ['keyword', 'string', 'comment', 'number', 'title', 'type'].flatMap((t) => { const s = pre.querySelector(`.hljs-${t}`); return s ? [[t, getComputedStyle(s).color]] : []; });
         const katex = document.querySelector('.book__clip .katex');
-        return { bg, tokens, katex: katex ? getComputedStyle(katex).color : null, paper: getComputedStyle(document.querySelector('.book')!).backgroundColor };
+        return { bg, tokens, katex: katex ? getComputedStyle(katex).color : null, paper: getComputedStyle(document.querySelector('.book__paper')!).backgroundColor };
       });
       for (const [token, colour] of colours.tokens) expect(contrast(colour as string, colours.bg), `${name}: ${token}`).toBeGreaterThanOrEqual(4.5);
       expect(colours.tokens.length).toBeGreaterThanOrEqual(3);

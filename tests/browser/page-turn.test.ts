@@ -78,10 +78,12 @@ describe('copies of the pages (what is drawn while a page turns)', () => {
   });
 
   it('refuses to copy a page of a block that is too long to copy cheaply', async () => {
-    const book = await open(denseCode(400), { width: 700, height: 260 });
+    const book = await open(`${paragraphs(30)}\n\n${denseCode(400)}\n\n${paragraphs(30, 40, 40)}`, { width: 700, height: 260 });
     const paper = { width: 340, height: 260, textLeft: 20, textTop: 16 };
-    expect(book.paginator.pageCount).toBeGreaterThan(12);
-    expect(renderFace(book.content, 3, book.paginator.pageSize, paper, 'x')).toBeNull();
+    const onPage = book.paginator.pageOf(book.content.querySelector('pre')!);
+    expect(book.paginator.pageCount).toBeGreaterThan(onPage + 2);
+    expect(renderFace(book.content, onPage, book.paginator.pageSize, paper, 'x')).toBeNull();
+    expect(renderFace(book.content, 0, book.paginator.pageSize, paper, 'x')).not.toBeNull(); // the pages around it can be copied
   });
 });
 
@@ -294,11 +296,12 @@ describe('reduced motion and pages that cannot be copied', () => {
   });
 
   it('a page that cannot be copied (a huge block) is turned with the same quick fade, not left broken', async () => {
-    const book = await open(denseCode(400), { width: 700, height: 260, turnDuration: 80 });
-    book.paginator.goTo(6);
+    const book = await open(`${paragraphs(30)}\n\n${denseCode(400)}\n\n${paragraphs(30, 40, 40)}`, { width: 700, height: 260, turnDuration: 80 });
+    book.paginator.goTo(book.paginator.pageOf(book.content.querySelector('pre')!)); // the view that holds the block that cannot be copied
     await frames(2);
+    const before = book.paginator.page;
     expect(book.turner.turn(1)).toBe(true);
-    expect(book.paginator.page).toBe(8);
+    expect(book.paginator.page).toBe(before + 2);
     expect(leaf(book)).toBeNull();
     await waitUntilDone(book);
     expect(layerIsEmpty(book)).toBe(true);

@@ -204,12 +204,13 @@ test.describe('the open book', () => {
     await openReader(page, 'long-book');
     const look = await page.evaluate(() => {
       const bookEl = document.querySelector('.book')!;
+      const paperEl = document.querySelector('.book__paper')!; // the paper paints above the leather, whatever the book is doing (see app.css)
       const stage = document.querySelector('.reader-stage')!;
       const before = getComputedStyle(bookEl, '::before');
       return {
-        paper: getComputedStyle(bookEl).backgroundColor,
+        paper: getComputedStyle(paperEl).backgroundColor,
         desk: getComputedStyle(document.querySelector('.reader-page')!).backgroundColor,
-        edges: getComputedStyle(bookEl).boxShadow,
+        edges: getComputedStyle(paperEl).boxShadow,
         coverColour: before.backgroundColor,
         coverShadow: before.boxShadow,
         stageIsolated: getComputedStyle(stage).isolation,
@@ -220,6 +221,8 @@ test.describe('the open book', () => {
     expect(look.coverColour).not.toBe('rgba(0, 0, 0, 0)');
     expect(look.coverShadow).not.toBe('none');
     expect(look.stageIsolated).toBe('isolate');
+    // the book is its own stacking context at all times, so the leather can never be painted over the paper
+    expect(await page.locator('.book').evaluate((el) => getComputedStyle(el).isolation)).toBe('isolate');
   });
 
   test('uses most of the screen: big pages, little around them', async ({ page }) => {
@@ -314,11 +317,12 @@ test.describe('the open book', () => {
         const column = (document.querySelector('.book__pages') as HTMLElement).offsetWidth;
         const gap = 48;
         const out: string[] = [];
-        for (const el of document.querySelectorAll('.book__clip .prose p, .prose li, .prose pre, .prose tr, .prose img, .prose h2, .prose blockquote')) {
+        for (const el of document.querySelectorAll('.book__clip .prose p, .prose li, .prose pre, .prose .table-wrap, .prose img, .prose h2, .prose blockquote')) {
           if (el.closest('[hidden]')) continue;
           const range = document.createRange();
           range.selectNodeContents(el);
-          const boxes = el.tagName === 'IMG' ? [...el.getClientRects()] : [...range.getClientRects()];
+          // code and tables scroll inside their own box: the box is what has to fit its page, not what is inside it
+          const boxes = el.tagName === 'IMG' || el.tagName === 'PRE' || el.classList.contains('table-wrap') ? [...el.getClientRects()] : [...range.getClientRects()];
           for (const r of boxes) {
             if (r.width === 0 || r.height === 0 || r.right <= clip.left + 1 || r.left >= clip.right - 1) continue;
             const x = r.left - clip.left;
@@ -688,7 +692,7 @@ test.describe('themes', () => {
     page.evaluate(() => ({
       attribute: document.documentElement.getAttribute('data-theme'),
       desk: getComputedStyle(document.querySelector('.reader-page')!).backgroundColor,
-      paper: getComputedStyle(document.querySelector('.book')!).backgroundColor,
+      paper: getComputedStyle(document.querySelector('.book__paper')!).backgroundColor,
       ink: getComputedStyle(document.querySelector('.book__clip .prose p')!).color,
     }));
   const luminance = (css: string) => {

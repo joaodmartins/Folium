@@ -63,13 +63,37 @@ function tidy(root: HTMLElement, headings: Heading[], bookTitle: string) {
   const firstVisible = [...root.children].find((child) => !child.hasAttribute('hidden'));
   firstVisible?.classList.add('first-block');
 
-  // Wide code blocks and tables scroll inside themselves; make them reachable by keyboard.
-  for (const pre of root.querySelectorAll('pre')) pre.setAttribute('tabindex', '0');
+  // Wide or tall tables scroll inside a wrapper. (Tables and code blocks that scroll become focusable
+  // once the page size is known, see markScrollableTables and markScrollableCode.)
   for (const table of root.querySelectorAll('table')) {
     const wrapper = document.createElement('div');
     wrapper.className = 'table-wrap';
-    wrapper.setAttribute('tabindex', '0');
     table.replaceWith(wrapper);
     wrapper.append(table);
+    sizeColumns(table);
+  }
+}
+
+/** Narrowest a column of short entries (numbers, names, codes) is allowed to get, in rem. */
+const NARROW_COLUMN = 5;
+
+/**
+ * A table is never squeezed until its text is unreadable: it keeps a width that suits what each column holds
+ * (a column of long sentences needs more room than one of numbers) and scrolls sideways when the page has
+ * less than that. The widths depend on the text only, not on the page, so they are set once, here.
+ */
+function sizeColumns(table: HTMLTableElement): void {
+  const longest: number[] = [];
+  for (const row of table.rows) {
+    [...row.cells].forEach((cell, column) => {
+      if (cell.colSpan === 1) longest[column] = Math.max(longest[column] ?? 0, (cell.textContent ?? '').trim().length);
+    });
+  }
+  for (const row of table.rows) {
+    [...row.cells].forEach((cell, column) => {
+      const length = longest[column] ?? 0;
+      const rem = length >= 60 ? 10 : length >= 25 ? 8 : NARROW_COLUMN;
+      if (rem > NARROW_COLUMN && cell.colSpan === 1) cell.style.minWidth = `${rem}rem`;
+    });
   }
 }

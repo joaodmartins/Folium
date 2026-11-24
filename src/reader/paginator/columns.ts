@@ -164,6 +164,8 @@ export async function createColumnsPaginator(
       s.setProperty('--page-h', `${height}px`);
     }
 
+    if (width > 0 && height > 0) options.beforeMeasure?.({ width, height, gap });
+
     const previousCount = pageCount;
     pageCount = measure();
 

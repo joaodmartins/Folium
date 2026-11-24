@@ -485,7 +485,7 @@ describe('pagination controls', () => {
     expect([...container.querySelectorAll('.page-start')].map((e) => e.textContent)).toEqual(['Three']); // only the manual break
   });
 
-  it('removes tab stops that only made sense for scrolling code blocks and tables', async () => {
+  it('has no tab stops on code blocks and tables until they are known to scroll', async () => {
     await openBook([], '```\ncode\n```\n\n| a |\n|---|\n| b |');
     expect(container.querySelector('pre')?.hasAttribute('tabindex')).toBe(false);
     expect(container.querySelector('.table-wrap')?.hasAttribute('tabindex')).toBe(false);

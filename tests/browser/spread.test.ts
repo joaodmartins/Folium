@@ -5,7 +5,6 @@ import {
   fragmentsOf,
   frames,
   geometry,
-  lineRects,
   mountBook,
   pagesOf,
   paragraphs,
@@ -164,8 +163,8 @@ describe('open book: two pages side by side', () => {
     const { left, step } = geometry(book);
     const columnWidth = book.paginator.pageSize.width;
     const view = book.viewport.getBoundingClientRect();
-    for (const el of book.content.querySelectorAll('p, pre, img, tr, blockquote, li')) {
-      const boxes = el.tagName === 'PRE' ? lineRects(el) : fragmentsOf(el);
+    for (const el of book.content.querySelectorAll('p, pre, img, .table-wrap, blockquote, li')) {
+      const boxes = fragmentsOf(el); // code and tables scroll inside their own box: the box is what has to fit
       for (const r of boxes) {
         if (r.width === 0) continue;
         const column = Math.floor((r.left - left + 1) / step);
@@ -293,7 +292,7 @@ describe('themes do not change the pages', () => {
     for (const theme of ['light', 'dark', 'sepia']) {
       document.documentElement.setAttribute('data-theme', theme);
       await frames(2);
-      const paper = luminance(getComputedStyle(book.frame.root).backgroundColor);
+      const paper = luminance(getComputedStyle(book.frame.root.querySelector('.book__paper')!).backgroundColor);
       const ink = luminance(getComputedStyle(book.content.querySelector('p')!).color);
       const ratio = (Math.max(paper, ink) + 0.05) / (Math.min(paper, ink) + 0.05);
       expect(ratio, `contrast in ${theme}`).toBeGreaterThan(7); // WCAG AAA for body text

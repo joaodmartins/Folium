@@ -324,12 +324,13 @@ test.describe('hard content', () => {
       const problems = await page.evaluate(() => {
         const view = document.querySelector('.book__clip')!.getBoundingClientRect();
         const found: string[] = [];
-        for (const el of document.querySelectorAll('.prose p, .prose li, .prose pre, .prose tr, .prose img, .prose h2, .prose blockquote')) {
+        for (const el of document.querySelectorAll('.prose p, .prose li, .prose pre, .prose .table-wrap, .prose img, .prose h2, .prose blockquote')) {
           if (el.closest('[hidden]')) continue;
           // text lines of the element that are on this page
           const range = document.createRange();
           range.selectNodeContents(el);
-          const boxes = el.tagName === 'IMG' ? [...el.getClientRects()] : [...range.getClientRects()];
+          // code and tables scroll inside their own box: the box is what has to fit its page, not what is inside it
+          const boxes = el.tagName === 'IMG' || el.tagName === 'PRE' || el.classList.contains('table-wrap') ? [...el.getClientRects()] : [...range.getClientRects()];
           for (const r of boxes) {
             if (r.width === 0 || r.height === 0) continue;
             const visible = r.right > view.left + 1 && r.left < view.right - 1;
@@ -361,15 +362,33 @@ test.describe('hard content', () => {
     });
   });
 
-  test('a long code block continues on the next pages and wraps its long lines', async ({ page }) => {
+  test('a long code block is one page tall and scrolls inside itself, down to its last line', async ({ page }) => {
     await openBook(page, HARD);
-    const code = page.locator('.prose pre');
+    const code = page.locator('.prose pre > code');
     const pagesWithCode = new Set<number>();
     await forEachPage(page, async (n) => {
       if (await onScreen(code)) pagesWithCode.add(n);
     });
-    expect(pagesWithCode.size).toBeGreaterThan(1);
-    expect(await code.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(pagesWithCode.size).toBe(1); // never split between pages
+    const state = await code.evaluate((el) => {
+      const pre = el.parentElement!;
+      const view = document.querySelector('.book__clip')!.getBoundingClientRect();
+      const before = { tall: el.scrollHeight > el.clientHeight, fits: pre.getBoundingClientRect().height <= view.height + 1, scrolls: el.getAttribute('tabindex') };
+      el.scrollTop = el.scrollHeight;
+      const box = el.getBoundingClientRect();
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let last: DOMRect | null = null;
+      for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+        const at = node.data.indexOf('MARK-CODE-END');
+        if (at < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + 'MARK-CODE-END'.length);
+        last = range.getBoundingClientRect();
+      }
+      return { ...before, endShown: last !== null && last.bottom <= box.bottom + 1 && last.top >= box.top - 1 };
+    });
+    expect(state).toEqual({ tall: true, fits: true, scrolls: '0', endShown: true });
   });
 
   test('works on a phone: same content, readable controls, no sideways scrolling', async ({ page }) => {

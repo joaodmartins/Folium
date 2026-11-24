@@ -5,7 +5,8 @@ import { renderTocPanel, type TocPanel } from '../components/toc-panel';
 import { el } from '../dom';
 import { findAnchorTarget } from '../reader/anchors';
 import { createPageTurner, type PageTurner } from '../reader/flip/turner';
-import { markScrollableFormulas } from '../reader/scrollable-formulas';
+import { keepHeadingsWithContent } from '../reader/keep-with-next';
+import { markScrollableCode, markScrollableFormulas, markScrollableTables } from '../reader/scrollable-formulas';
 import { computeBookLayout, GUTTER, sameLayout, type BookLayout } from '../reader/layout';
 import { columnsPaginator } from '../reader/paginator/columns';
 import type { Paginator } from '../reader/paginator/types';
@@ -217,12 +218,11 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         true,
       );
 
-      // Pages never scroll: code and tables wrap instead, so they are not tab stops.
-      for (const node of result.element.querySelectorAll('pre, .table-wrap')) node.removeAttribute('tabindex');
 
       const frame = renderBookFrame(result.element);
-      frame.root.style.visibility = 'hidden'; // laid out (so it can be measured) but not shown unpaginated
-      stage.replaceChildren(frame.root);
+      // Laid out (so it can be measured) but not shown while unpaginated: the loading message stays until the book is ready.
+      frame.root.style.visibility = 'hidden';
+      stage.append(frame.root);
 
       let layout: BookLayout = computeBookLayout({ width: stage.clientWidth, height: stage.clientHeight });
       frame.applyLayout(layout);
@@ -231,8 +231,11 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         pagesPerView: () => layout.pages,
         gap: GUTTER,
         animate: false, // the reader draws its own page turns
+        beforeMeasure: (page) => keepHeadingsWithContent(result.element, page),
         onLayout: () => {
           markScrollableFormulas(result.element);
+          markScrollableCode(result.element);
+          markScrollableTables(result.element);
           measureHeadings(); // the pages changed: so did the page each heading is on
           panel?.setActive(activeId());
           saveProgressNow();
@@ -300,6 +303,7 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         saveProgressNow();
       });
 
+      stage.querySelector('.reader__status')?.remove();
       frame.root.style.visibility = '';
       stage.setAttribute('aria-busy', 'false');
       if (!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
@@ -356,8 +360,9 @@ function listenForArrowKeys(
     if (!book.isConnected || bar.indicator.editing || isBlocked()) return;
     const target = event.target;
     if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
-    // A wide formula that has the focus scrolls with the arrow keys.
+    // A wide formula, or a code block or table that scrolls sideways, scrolls with the arrow keys when it has the focus.
     if (target instanceof HTMLElement && target.closest('.katex-display[tabindex]')) return;
+    if (target instanceof HTMLElement && target.closest('pre > code[data-scrolls="x"], pre > code[data-scrolls="both"], .table-wrap[data-scrolls="x"], .table-wrap[data-scrolls="both"]')) return;
     event.preventDefault();
     if (event.key === 'ArrowRight') nav.next();
     else nav.prev();

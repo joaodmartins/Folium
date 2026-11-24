@@ -9,7 +9,6 @@ import {
   fragmentsOf,
   frames,
   geometry,
-  lineRects,
   mountBook,
   pageOfRect,
   pagesOf,
@@ -48,7 +47,8 @@ function problems(b: Mounted): string[] {
     if (el.closest('.katex-display') && !el.matches('.katex-display')) continue; // inside a scrolling box: clipped by it
     for (const r of fragmentsOf(el)) check(el.tagName + (el.className ? `.${String(el.className).split(' ')[0]}` : ''), r);
   }
-  for (const pre of b.content.querySelectorAll('pre')) for (const r of lineRects(pre)) if (!(r.width === 0)) check('pre line', r);
+  // A code block scrolls inside its own box, so what has to fit the page is the box (not the lines inside it).
+  for (const pre of b.content.querySelectorAll('pre')) for (const r of fragmentsOf(pre)) check('pre', r);
   for (const katex of b.content.querySelectorAll('.katex')) {
     if (katex.closest('.katex-display')) continue;
     for (const r of fragmentsOf(katex)) check('inline formula', r);
@@ -191,13 +191,13 @@ describe('highlight.js in the book', () => {
     const b = await book();
     const noLang = [...b.content.querySelectorAll('pre code')].find((c) => c.textContent!.startsWith('a block without a language'))!;
     expect(noLang.textContent).toBe('a block without a language\n    keeps its indentation\n');
-    expect(getComputedStyle(noLang).whiteSpace).toBe('pre-wrap');
+    expect(getComputedStyle(noLang).whiteSpace).toBe('pre'); // lines are not wrapped: they scroll sideways when too long
     const html = [...b.content.querySelectorAll('pre code.language-html')].find((c) => c.textContent!.includes('<script>'))!;
     expect(html.querySelector('script, img')).toBeNull();
     expect(html.textContent).toContain('<script>alert("code is only text")</script>');
   });
 
-  it('long lines wrap inside the block: no block is wider than its page', async () => {
+  it('no code block is wider than its page: long lines scroll inside the block', async () => {
     const b = await book();
     for (const pre of b.content.querySelectorAll('pre')) {
       expect(pre.scrollWidth, pre.textContent!.slice(0, 20)).toBeLessThanOrEqual(pre.clientWidth + 1);
@@ -206,20 +206,20 @@ describe('highlight.js in the book', () => {
     expect(problems(b)).toEqual([]);
   });
 
-  it('a code block that crosses pages stays highlighted, and every line is reachable', async () => {
+  it('a very long code block stays on one page, highlighted, and scrolls to its last line', async () => {
     const b = await book();
     const pre = [...b.content.querySelectorAll('pre')].find((p) => p.textContent!.includes('MARK-LONG-CODE-END'))!;
-    const pages = pagesOf(b, pre);
-    expect(pages.length).toBeGreaterThan(2);
-    expect(pre.querySelectorAll('.hljs-number').length).toBeGreaterThan(300); // the colours do not stop at the page edge
-    const view = b.viewport.getBoundingClientRect();
-    for (const line of lineRects(pre)) {
-      expect(line.top).toBeGreaterThanOrEqual(view.top - 1);
-      expect(line.bottom).toBeLessThanOrEqual(view.bottom + 1);
-    }
-    b.paginator.goTo(pages.at(-1)!);
+    const code = pre.querySelector('code')!;
+    expect(pagesOf(b, pre)).toHaveLength(1); // never split between pages
+    expect(pre.getBoundingClientRect().height).toBeLessThanOrEqual(b.paginator.pageSize.height + 1);
+    expect(code.scrollHeight).toBeGreaterThan(code.clientHeight); // longer than the page: it scrolls
+    expect(pre.querySelectorAll('.hljs-number').length).toBeGreaterThan(300); // the colours are all there
+    code.scrollTop = code.scrollHeight;
     const end = [...pre.querySelectorAll('.hljs-comment')].find((c) => c.textContent!.includes('MARK-LONG-CODE-END'))!;
-    expect(visibleFragments(b, end).length).toBeGreaterThan(0);
+    const box = code.getBoundingClientRect();
+    const mark = end.getBoundingClientRect();
+    expect(mark.bottom).toBeLessThanOrEqual(box.bottom + 1); // scrolled into view
+    expect(mark.top).toBeGreaterThanOrEqual(box.top - 1);
   });
 
   it('a heading is never left alone at the bottom of a page before code or formulas', async () => {
@@ -320,8 +320,7 @@ describe('the pages of a book with maths and code', () => {
     await frames();
     for (const [w, h, pages] of [[420, 640, 1], [640, 420, 1], [1000, 520, 2], [700, 500, 1], [900, 460, 2]] as const) {
       const label = topLabel();
-      await b.setPages(pages);
-      await b.resize(w, h);
+      await b.reshape(w, h, pages); // one change, like turning a tablet: the reader lays the book out once
       expect(b.paginator.page, `${w}x${h}`).toBeGreaterThan(0);
       expect(visibleStart(label), `${w}x${h}: still at "${label}"`).toBe(true);
       expect(problems(b), `${w}x${h}`).toEqual([]);
@@ -426,12 +425,15 @@ describe('the copies drawn while a page turns', () => {
     expect(layer.childElementCount).toBe(0);
   });
 
-  it('a long code block that spans many pages is turned with a plain fade, and nothing breaks', async () => {
-    const b = await mountBook(denseCode(400), { pages: 2, width: 700, height: 260, turnDuration: 60 });
-    b.paginator.goTo(6);
+  it('a page whose code block is too big to copy is turned with a plain fade, and nothing breaks', async () => {
+    const b = await mountBook(`${paragraphs(30)}\n\n${denseCode(400)}\n\n${paragraphs(30, 40, 40)}`, { pages: 2, width: 700, height: 260, turnDuration: 60 });
+    const pre = b.content.querySelector('pre')!;
+    const start = pagesOf(b, pre)[0];
+    b.paginator.goTo(Math.max(0, start - 2));
     await frames(1);
+    const before = b.paginator.page;
     expect(b.turner.turn(1)).toBe(true);
-    expect(b.paginator.page).toBe(8);
+    expect(b.paginator.page).toBe(before + 2);
     await vi.waitFor(() => expect(b.turner.busy).toBe(false), { timeout: 3000 });
     expect(problems(b)).toEqual([]);
   });
@@ -476,7 +478,7 @@ describe('themes', () => {
       await frames(2);
       const text = getComputedStyle(b.content.querySelector('p')!).color;
       expect(getComputedStyle(displays(b)[0].querySelector('.katex')!).color, theme).toBe(text);
-      expect(contrast(getComputedStyle(b.frame.root).backgroundColor, text), theme).toBeGreaterThan(7);
+      expect(contrast(getComputedStyle(b.frame.root.querySelector('.book__paper')!).backgroundColor, text), theme).toBeGreaterThan(7);
     }
   });
 

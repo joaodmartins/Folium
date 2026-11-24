@@ -52,11 +52,11 @@ describe('Markdown rendering', () => {
     expect(element.querySelectorAll('hr')).toHaveLength(1);
   });
 
-  it('renders tables, wrapped in a scrollable container', () => {
+  it('renders tables, wrapped in a container that can scroll', () => {
     const { element } = render('| Letter | Sound |\n|--------|:-----:|\n| А | a |\n| Б | b |');
     const wrapper = element.querySelector('.table-wrap');
     expect(wrapper?.querySelector('table')).not.toBeNull();
-    expect(wrapper?.getAttribute('tabindex')).toBe('0');
+    expect(wrapper?.hasAttribute('tabindex')).toBe(false); // focusable only when it scrolls: the reader decides once the pages are laid out
     expect([...element.querySelectorAll('th')].map((c) => c.textContent)).toEqual(['Letter', 'Sound']);
     expect(element.querySelectorAll('tbody tr')).toHaveLength(2);
     expect(element.querySelectorAll('tbody td')[2].textContent).toBe('Б');
@@ -67,7 +67,9 @@ describe('Markdown rendering', () => {
     const code = element.querySelector('pre > code');
     expect(code?.className).toBe('language-c');
     expect(code?.textContent).toBe('if (a < b && c > d) {\n    return 1;\n}\n');
-    expect(element.querySelector('pre')?.getAttribute('tabindex')).toBe('0');
+    // Whether a block scrolls depends on the page size: the reader makes it focusable once the pages are laid out.
+    expect(element.querySelector('pre')?.hasAttribute('tabindex')).toBe(false);
+    expect(code?.hasAttribute('tabindex')).toBe(false);
   });
 
   it('renders indented code blocks and code fences without a language', () => {

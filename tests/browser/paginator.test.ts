@@ -320,31 +320,49 @@ describe('chapter breaks (chapterBreak)', () => {
 });
 
 describe('content that is hard to paginate', () => {
-  it('a code block taller than a page is split, and every line stays reachable', async () => {
+  it('a code block taller than a page is one page tall and scrolls inside itself: every line stays reachable', async () => {
     const book = await mountBook(`Intro.\n\n${codeBlock(120)}\n\nOutro.`);
     const pre = book.content.querySelector('pre')!;
-    expect(pagesOf(book, pre).length).toBeGreaterThan(1);
+    const code = pre.querySelector('code')!;
+    expect(pagesOf(book, pre)).toHaveLength(1); // never split between pages
+    expect(pre.getBoundingClientRect().height).toBeLessThanOrEqual(book.paginator.pageSize.height + 1);
+    expect(code.scrollHeight).toBeGreaterThan(code.clientHeight);
+    expect(code.getAttribute('tabindex')).toBe('0'); // reachable by keyboard, because it scrolls
+    expect(code.getAttribute('aria-label')).toBeTruthy();
 
-    const view = book.viewport.getBoundingClientRect();
-    const lines = lineRects(pre);
-    expect(lines.length).toBeGreaterThanOrEqual(120);
-    for (const line of lines) {
-      expect(line.top).toBeGreaterThanOrEqual(view.top - 1); // nothing is cut off at the top or bottom of a page
-      expect(line.bottom).toBeLessThanOrEqual(view.bottom + 1);
-      expect(line.right).toBeLessThanOrEqual(book.content.getBoundingClientRect().left + geometry(book).step * (pageOfRect(book, line) + 1)); // and no line overflows sideways
-    }
-    // the last line can be shown
+    // the first line is there, and the last one can be scrolled to
+    const box = code.getBoundingClientRect();
+    expect(lineRects(code)[0].top).toBeGreaterThanOrEqual(box.top - 1);
+    code.scrollTop = code.scrollHeight;
+    const rects = lineRects(code);
+    expect(rects.length).toBeGreaterThanOrEqual(120);
+    expect(rects.at(-1)!.bottom).toBeLessThanOrEqual(box.bottom + 1);
+    expect(rects.at(-1)!.top).toBeGreaterThanOrEqual(box.top - 1);
+
+    // and the text that follows is on a later page
     book.paginator.goTo(book.paginator.pageCount - 1);
     expect(visibleFragments(book, book.content.querySelector('p:last-of-type')!).length).toBeGreaterThan(0);
   });
 
-  it('long code lines wrap instead of running off the page', async () => {
+  it('long code lines scroll sideways instead of wrapping, and the end of the line is reachable', async () => {
     const long = 'x'.repeat(400);
     const book = await mountBook('```\n' + long + '\n```');
     const pre = book.content.querySelector('pre')!;
-    expect(pre.scrollWidth).toBeLessThanOrEqual(pre.clientWidth + 1);
-    expect(book.paginator.pageCount).toBeGreaterThanOrEqual(1);
-    for (const r of lineRects(pre)) expect(r.right).toBeLessThanOrEqual(pre.getBoundingClientRect().right + 1);
+    const code = pre.querySelector('code')!;
+    expect(pre.getBoundingClientRect().width).toBeLessThanOrEqual(book.paginator.pageSize.width + 1); // the block fits its page…
+    expect(code.scrollWidth).toBeGreaterThan(code.clientWidth); // …the line does not
+    expect(lineRects(code)).toHaveLength(1); // one line: it is not wrapped
+    expect(code.getAttribute('tabindex')).toBe('0');
+    code.scrollLeft = code.scrollWidth;
+    expect(lineRects(code)[0].right).toBeLessThanOrEqual(code.getBoundingClientRect().right + 1);
+  });
+
+  it('a block of code that fits has nothing to scroll and is not a tab stop', async () => {
+    const book = await mountBook('Short.\n\n```c\nint x = 1;\nint y = 2;\n```');
+    const code = book.content.querySelector('pre code')!;
+    expect(code.scrollHeight).toBeLessThanOrEqual(code.clientHeight + 1);
+    expect(code.scrollWidth).toBeLessThanOrEqual(code.clientWidth + 1);
+    expect(code.hasAttribute('tabindex')).toBe(false);
   });
 
   it('a short code block is never split between pages', async () => {
@@ -377,26 +395,37 @@ describe('content that is hard to paginate', () => {
     expect(img.getBoundingClientRect().width).toBeLessThanOrEqual(book.viewport.getBoundingClientRect().width + 1);
   });
 
-  it('a wide table shrinks to the page, wrapping its cells', async () => {
+  it('a wide table keeps readable columns and scrolls sideways inside its block, without widening the page', async () => {
     const cells = (tag: string) => range(10).map((i) => `${tag}-supercalifragilisticexpialidocious-${i}`);
     const rows = range(8).map(() => `| ${cells('cell').join(' | ')} |`);
     const table = [`| ${cells('head').join(' | ')} |`, `|${range(10).map(() => '---').join('|')}|`, ...rows].join('\n');
     const book = await mountBook(table);
+    const wrap = book.content.querySelector<HTMLElement>('.table-wrap')!;
     const pageWidth = book.content.offsetWidth;
-    // (a table taller than a page has one box per page, so measure each box)
-    for (const el of book.content.querySelectorAll('table, th, td')) {
-      for (const box of fragmentsOf(el)) expect(box.width, el.tagName).toBeLessThanOrEqual(pageWidth + 1);
-    }
-    // and the whole book is exactly as many pages wide as it says (nothing sticks out sideways)
+    expect(wrap.getBoundingClientRect().width).toBeLessThanOrEqual(pageWidth + 1);
+    expect(wrap.scrollWidth).toBeGreaterThan(wrap.clientWidth); // the table is wider than the page: it scrolls
+    expect(wrap.dataset.scrolls === 'x' || wrap.dataset.scrolls === 'both').toBe(true);
+    for (const th of wrap.querySelectorAll('th')) expect(th.getBoundingClientRect().width).toBeGreaterThanOrEqual(70); // no column is squeezed to nothing
+    // and the page itself is exactly as many pages wide as it says (nothing sticks out sideways)
     const { step } = geometry(book);
     expect(book.content.scrollWidth).toBeLessThanOrEqual(step * book.paginator.pageCount);
+    wrap.scrollLeft = wrap.scrollWidth; // the last column can be reached
+    const last = wrap.querySelector('th:last-child')!.getBoundingClientRect();
+    expect(last.right).toBeLessThanOrEqual(wrap.getBoundingClientRect().right + 1);
+    expect(last.left).toBeGreaterThanOrEqual(wrap.getBoundingClientRect().left - 1);
   });
 
-  it('a long table breaks between rows, never inside one', async () => {
+  it('a long table is one block no taller than a page, scrolls to its last row and is never split between pages', async () => {
     const rows = range(60).map((i) => `| row ${i} | value ${i} | more text for row ${i} |`);
     const book = await mountBook(['| A | B | C |', '|---|---|---|', ...rows].join('\n'));
-    expect(book.paginator.pageCount).toBeGreaterThan(1);
-    for (const tr of book.content.querySelectorAll('tbody tr')) expect(pagesOf(book, tr)).toHaveLength(1);
+    const wrap = book.content.querySelector<HTMLElement>('.table-wrap')!;
+    expect(pagesOf(book, wrap)).toHaveLength(1);
+    expect(wrap.getBoundingClientRect().height).toBeLessThanOrEqual(book.paginator.pageSize.height + 1);
+    expect(wrap.scrollHeight).toBeGreaterThan(wrap.clientHeight);
+    for (const tr of book.content.querySelectorAll('tr')) expect(pagesOf(book, tr)).toHaveLength(1);
+    wrap.scrollTop = wrap.scrollHeight;
+    const lastRow = wrap.querySelector('tbody tr:last-child')!.getBoundingClientRect();
+    expect(lastRow.bottom).toBeLessThanOrEqual(wrap.getBoundingClientRect().bottom + 1);
   });
 
   it('a long list keeps each item whole, and a short quote stays on one page', async () => {

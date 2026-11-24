@@ -7,6 +7,8 @@ import { renderReaderBar, type ReaderBar } from '../../src/components/reader-bar
 import { createPageTurner, type PageTurner } from '../../src/reader/flip/turner';
 import { GUTTER, type BookLayout } from '../../src/reader/layout';
 import { markScrollableFormulas } from '../../src/reader/math';
+import { markScrollableCode, markScrollableTables } from '../../src/reader/scrollable-formulas';
+import { keepHeadingsWithContent } from '../../src/reader/keep-with-next';
 import { createColumnsPaginator, type ColumnsOptions } from '../../src/reader/paginator/columns';
 import type { Paginator } from '../../src/reader/paginator/types';
 import { renderMarkdown } from '../../src/reader/render';
@@ -37,6 +39,8 @@ export interface Mounted {
   setSize(width: number, height: number): void;
   /** Switches between one page and an open book (the reader does this when the screen changes). */
   setPages(pages: 1 | 2): Promise<void>;
+  /** Changes the size and the number of pages at once (rotating a tablet), with a single new layout, as the reader does. */
+  reshape(width: number, height: number, pages: 1 | 2): Promise<void>;
   destroy(): void;
 }
 
@@ -102,7 +106,13 @@ export async function mountBook(markdown: string, options: MountOptions = {}): P
     animate: false,
     gap: GUTTER,
     pagesPerView: () => currentPages,
-    onLayout: () => markScrollableFormulas(content), // like the reader: wide formulas become focusable
+    beforeMeasure: (page) => keepHeadingsWithContent(content, page), // like the reader: headings stay with their text
+    onLayout: () => {
+      // like the reader: wide formulas, code and tables that scroll become focusable
+      markScrollableFormulas(content);
+      markScrollableCode(content);
+      markScrollableTables(content);
+    },
     ...paginatorOptions,
   });
 
@@ -159,6 +169,12 @@ export async function mountBook(markdown: string, options: MountOptions = {}): P
     setSize,
     async resize(w, h) {
       setSize(w, h);
+      await frames(5);
+    },
+    async reshape(w, h, next) {
+      currentPages = next;
+      setSize(w, h);
+      paginator.refresh();
       await frames(5);
     },
     async setPages(next) {
@@ -270,9 +286,9 @@ function wordBoxes(root: Element): { word: string; rect: DOMRect }[] {
       range.setEnd(node, match.index + match[0].length);
       const rect = range.getClientRects()[0];
       if (!rect || rect.width === 0) continue;
-      // Text scrolled out of view inside a box (a wide formula) is not on the page.
-      const box = node.parentElement?.closest('.katex-display')?.getBoundingClientRect();
-      if (box && (rect.left >= box.right - 1 || rect.right <= box.left + 1)) continue;
+      // Text scrolled out of view inside a box (a wide formula, a long or wide block of code, a big table) is not on the page.
+      const box = node.parentElement?.closest('.katex-display, pre > code, .table-wrap')?.getBoundingClientRect();
+      if (box && (rect.left >= box.right - 1 || rect.right <= box.left + 1 || rect.top >= box.bottom - 1 || rect.bottom <= box.top + 1)) continue;
       out.push({ word: match[0], rect });
     }
   }

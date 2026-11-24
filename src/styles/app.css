@@ -704,11 +704,13 @@ h1:focus {
   inset: 0;
   margin: auto;
   border-radius: 5px;
-  background: var(--page-bg);
-  box-shadow:
-    0 1px 0 var(--page-edge),
-    0 2px 0 var(--page-edge),
-    0 3px 0 rgb(var(--spine) / 0.18);
+  /*
+   * The book is always its own stacking context. Otherwise it only becomes one while it is animated
+   * (opacity, transform), and the leather cover below (z-index: -1) would then be painted over the
+   * paper for the length of the animation: a brown book that turns into pages when it ends.
+   * The paper's colour lives on .book__paper for the same reason (it paints above the leather).
+   */
+  isolation: isolate;
 }
 
 /* The hard cover around the pages, and the book's shadow on the desk. */
@@ -728,10 +730,18 @@ h1:focus {
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  background: var(--page-bg);
+  box-shadow:
+    0 1px 0 var(--page-edge),
+    0 2px 0 var(--page-edge),
+    0 3px 0 rgb(var(--spine) / 0.18);
 }
 
 .book[data-pages='2'] .book__paper {
   box-shadow:
+    0 1px 0 var(--page-edge),
+    0 2px 0 var(--page-edge),
+    0 3px 0 rgb(var(--spine) / 0.18),
     inset 3px 0 0 var(--page-edge),
     inset -3px 0 0 var(--page-edge);
 }
@@ -1085,8 +1095,9 @@ h1:focus {
 }
 
 :is(.prose, .flip__copy) .page-start,
+:is(.prose, .flip__copy) .keep-start,
 :is(.prose, .flip__copy) .first-block {
-  break-before: column; /* <!-- pagebreak --> and chapter headings */
+  break-before: column; /* <!-- pagebreak -->, chapter headings, and headings moved to the page of their text (keep-with-next.ts) */
   margin-top: 0; /* the top of a page has no extra space */
 }
 
@@ -1237,7 +1248,8 @@ h1:focus {
 }
 
 :is(.prose, .flip__copy) pre {
-  padding: 1rem 1.1rem;
+  padding: 0;
+  overflow: hidden; /* clips the scrolling code to the rounded corners */
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
@@ -1246,21 +1258,53 @@ h1:focus {
   font-size: 0.95rem;
 }
 
-/* Pages do not scroll sideways: long lines wrap, so all of the code stays readable. */
-:is(.prose, .flip__copy) pre code {
-  padding: 0;
+/*
+ * Code is never cut off and never split between pages. A block taller than a page (or than the room
+ * a page has left after the headings above it: --block-max, set by keep-with-next.ts) is exactly that
+ * tall and scrolls inside itself; lines that are too long scroll sideways instead of wrapping, so
+ * alignment is kept. A block that fits has nothing to scroll. The Copy button sits on the <pre> (which
+ * does not scroll), so it stays in place while the code moves under it.
+ */
+:is(.prose, .flip__copy) pre > code {
+  display: block;
+  box-sizing: border-box;
+  max-height: calc(var(--block-max, var(--page-h, 70vh)) - 2px);
+  padding: 1rem 1.1rem;
   font-size: inherit;
   background: none;
   border: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow: auto;
+  overscroll-behavior: contain; /* reaching the end of the code does not scroll anything else */
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 4;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
+}
+
+/* A hint that there is more: soft shadows on the edges that can still be scrolled towards. */
+:is(.prose, .flip__copy) pre > code[data-scrolls] {
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right center / 2rem 100% no-repeat local,
+    linear-gradient(to bottom, var(--surface) 30%, transparent) center top / 100% 1.5rem no-repeat local,
+    linear-gradient(to top, var(--surface) 30%, transparent) center bottom / 100% 1.5rem no-repeat local,
+    linear-gradient(to right, rgb(var(--spine) / 0.22), transparent) left center / 0.7rem 100% no-repeat scroll,
+    linear-gradient(to left, rgb(var(--spine) / 0.22), transparent) right center / 0.7rem 100% no-repeat scroll,
+    linear-gradient(to bottom, rgb(var(--spine) / 0.22), transparent) center top / 100% 0.7rem no-repeat scroll,
+    linear-gradient(to top, rgb(var(--spine) / 0.22), transparent) center bottom / 100% 0.7rem no-repeat scroll;
+}
+
+:is(.prose, .flip__copy) pre > code[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 :is(.prose, .flip__copy) img {
   display: block;
   max-width: 100%;
   /* never taller than a page (--page-h is set by the paginator), so a big image is shown whole */
-  max-height: calc(var(--page-h, 100vh) - 2rem);
+  max-height: var(--media-max, calc(var(--page-h, 100vh) - 2rem));
   width: auto;
   height: auto;
   margin: 1rem auto;
@@ -1271,13 +1315,26 @@ h1:focus {
   margin-block: 0.4em;
 }
 
+/*
+ * A table is one block that never splits between pages, like a block of code. Its box is no taller than a
+ * page (or than the room a page has left after the headings above it: --block-max, set by keep-with-next.ts)
+ * and scrolls inside itself, down and sideways, so every cell can be reached. A table that fits has nothing
+ * to scroll and looks as it always did. Columns are not squeezed below a readable width: a table that needs
+ * more room than the page has scrolls sideways instead.
+ */
 :is(.prose, .flip__copy) .table-wrap {
-  overflow: visible;
+  max-height: var(--block-max, var(--page-h, 70vh));
+  overflow: auto;
+  overscroll-behavior: contain; /* reaching the end of the table does not scroll anything else */
+  break-inside: avoid;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
 }
 
 :is(.prose, .flip__copy) table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate; /* (collapsed borders do not stay with a sticky header) */
+  border-spacing: 0;
   font-family: var(--font-ui);
   font-size: 0.95rem;
   line-height: 1.45;
@@ -1285,16 +1342,42 @@ h1:focus {
 
 :is(.prose, .flip__copy) th,
 :is(.prose, .flip__copy) td {
+  min-width: 5rem; /* (wider for columns of text: see sizeColumns in render.ts) */
   padding: 0.5em 0.8em;
   text-align: left;
   border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere; /* a wide table shrinks to the page instead of overflowing it */
+  hyphens: manual; /* a narrow column scrolls rather than breaking words */
 }
 
 :is(.prose, .flip__copy) th {
   font-weight: 600;
   background: var(--surface);
   border-bottom: 2px solid var(--border);
+}
+
+/* The header row stays in view while the rows scroll under it. */
+:is(.prose, .flip__copy) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* A hint that there is more: soft shadows on the edges that can still be scrolled towards (as in code blocks). */
+:is(.prose, .flip__copy) .table-wrap[data-scrolls] {
+  background:
+    linear-gradient(to right, var(--page-bg) 30%, transparent) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--page-bg) 30%, transparent) right center / 2rem 100% no-repeat local,
+    linear-gradient(to bottom, var(--page-bg) 30%, transparent) center top / 100% 1.5rem no-repeat local,
+    linear-gradient(to top, var(--page-bg) 30%, transparent) center bottom / 100% 1.5rem no-repeat local,
+    linear-gradient(to right, rgb(var(--spine) / 0.22), transparent) left center / 0.7rem 100% no-repeat scroll,
+    linear-gradient(to left, rgb(var(--spine) / 0.22), transparent) right center / 0.7rem 100% no-repeat scroll,
+    linear-gradient(to bottom, rgb(var(--spine) / 0.22), transparent) center top / 100% 0.7rem no-repeat scroll,
+    linear-gradient(to top, rgb(var(--spine) / 0.22), transparent) center bottom / 100% 0.7rem no-repeat scroll;
+}
+
+:is(.prose, .flip__copy) .table-wrap[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 :is(.prose, .flip__copy) .missing-image,
