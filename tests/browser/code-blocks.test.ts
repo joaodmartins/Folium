@@ -92,6 +92,21 @@ describe('code blocks never lose content', () => {
   });
 });
 
+describe('code written as raw HTML', () => {
+  it('a bare <pre> scrolls like a fenced block: long lines and many lines are not cut off', async () => {
+    const lines = range(80).map((i) => `line ${i} ${'x'.repeat(i === 3 ? 400 : 10)}`).join('\n');
+    const book = await mountBook(`Intro\n\n<pre>${lines}</pre>\n\nAfter`, SIZE);
+    const { pre, code } = parts(book);
+    expect(pagesOf(book, pre)).toHaveLength(1);
+    expect(pre.getBoundingClientRect().height).toBeLessThanOrEqual(book.paginator.pageSize.height + 1);
+    expect(pre.getBoundingClientRect().width).toBeLessThanOrEqual(book.paginator.pageSize.width + 1);
+    expect(code.dataset.scrolls).toBe('both');
+    code.scrollTo(code.scrollWidth, code.scrollHeight);
+    expect(code.scrollTop + code.clientHeight).toBeGreaterThanOrEqual(code.scrollHeight - 1);
+    expect(code.scrollLeft + code.clientWidth).toBeGreaterThanOrEqual(code.scrollWidth - 1);
+  });
+});
+
 describe('the Copy button', () => {
   it('copies all of the code, including what is scrolled out of view, and stays in place while the code scrolls', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

@@ -1,21 +1,29 @@
 // Kept apart from math.ts so the reader view can use it without loading KaTeX (which is only loaded with the book's text).
 
+/** A display formula may stick out a few pixels (descenders, accents) without needing a scroll bar. */
+const VERTICAL_SLACK = 6;
+
 /**
- * A display formula wider than its page scrolls sideways inside its own box (the page never does).
+ * A display formula wider (or taller) than its page scrolls inside its own box (the page never does).
  * Such a formula is made keyboard-focusable, so that it can be scrolled without a mouse; formulas that
  * fit are not. Depends on the page size, so the reader calls it after every layout.
  */
 export function markScrollableFormulas(root: ParentNode): void {
   for (const formula of root.querySelectorAll<HTMLElement>('.katex-display')) {
-    const scrolls = formula.scrollWidth > formula.clientWidth + 1;
-    if (scrolls && !formula.hasAttribute('tabindex')) {
-      formula.setAttribute('tabindex', '0');
-      formula.setAttribute('role', 'group');
-      formula.setAttribute('aria-label', 'Wide formula: scrolls sideways');
-    } else if (!scrolls && formula.hasAttribute('tabindex')) {
+    const horizontal = formula.scrollWidth > formula.clientWidth + 1;
+    const vertical = formula.scrollHeight > formula.clientHeight + VERTICAL_SLACK;
+    if (horizontal || vertical) {
+      if (!formula.hasAttribute('tabindex')) {
+        formula.setAttribute('tabindex', '0');
+        formula.setAttribute('role', 'group');
+      }
+      formula.setAttribute('aria-label', horizontal && vertical ? 'Large formula: scrolls sideways and down' : horizontal ? 'Wide formula: scrolls sideways' : 'Tall formula: scrolls down');
+      formula.toggleAttribute('data-scroll-y', vertical); // only a formula that is cut by the page gets a vertical scroll bar
+    } else if (formula.hasAttribute('tabindex')) {
       formula.removeAttribute('tabindex');
       formula.removeAttribute('role');
       formula.removeAttribute('aria-label');
+      formula.removeAttribute('data-scroll-y');
     }
   }
 }

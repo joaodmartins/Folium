@@ -6,7 +6,7 @@
  * page (a code block almost as tall as the page, say) the browser gives up and leaves the heading
  * alone at the bottom of one page with its text on the next. This module makes it hold:
  *
- *  1. A code block, a table or an image that follows headings is never taller than the page minus those
+ *  1. A code block, a table, a display formula or an image that follows headings is never taller than the page minus those
  *     headings (the code and the table scroll inside themselves, the image is scaled down: `--block-max` and
  *     `--media-max` in app.css), so heading and block always fit on one page together.
  *  2. After the browser has laid the pages out, any heading that ended up on a different page than
@@ -113,6 +113,10 @@ function capBlocksAfterHeadings(content: HTMLElement, page: PageBox): void {
       // a table scrolls inside its wrapper, like code: no taller than the room left after the headings
       const room = Math.floor(page.height - used);
       if (room >= MIN_CODE_ROOM && next.scrollHeight > room) next.style.setProperty('--block-max', `${room}px`);
+    } else if (next.classList.contains('math--display')) {
+      // a display formula taller than the room scrolls inside itself (the formula inside is capped by --block-max)
+      const room = Math.floor(page.height - used);
+      if (room >= MIN_CODE_ROOM && next.getBoundingClientRect().height > room) next.style.setProperty('--block-max', `${room}px`);
     } else if (isPicture(next)) {
       const room = Math.floor(page.height - used - MEDIA_MARGIN);
       if (room >= MIN_CODE_ROOM && next.getBoundingClientRect().height > room) next.style.setProperty('--media-max', `${room}px`);

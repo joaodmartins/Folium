@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { center, drag, scrollOf } from './support/scroll';
 
 // Code blocks that scroll, headings that stay with their text, and a book that appears only when it is ready.
 // Runs against tests/fixtures/e2e-library/Reading (+ Rich, for formulas):
@@ -29,25 +30,7 @@ async function codeUnder(page: Page, heading: string): Promise<Locator> {
   return code;
 }
 
-const scrollOf = (code: Locator) => code.evaluate((el) => ({ top: el.scrollTop, left: el.scrollLeft, maxTop: el.scrollHeight - el.clientHeight, maxLeft: el.scrollWidth - el.clientWidth }));
-const center = async (locator: Locator) => {
-  const box = (await locator.boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-};
 const pageText = (page: Page) => indicator(page).innerText();
-
-/** A finger drag from (x, y) by (dx, dy), as touch events (what the browser turns into a scroll of whatever is under the finger). */
-async function drag(page: Page, x: number, y: number, dx: number, dy: number) {
-  const cdp = await page.context().newCDPSession(page);
-  const steps = 12;
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-  for (let i = 1; i <= steps; i++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + (dx * i) / steps, y: y + (dy * i) / steps }] });
-    await page.waitForTimeout(16);
-  }
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await cdp.detach();
-}
 
 /** Is `needle` inside the part of the block that is on screen (not scrolled out of the block's box)? */
 const shown = (code: Locator, needle: string) =>

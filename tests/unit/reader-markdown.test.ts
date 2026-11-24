@@ -62,6 +62,14 @@ describe('Markdown rendering', () => {
     expect(element.querySelectorAll('tbody td')[2].textContent).toBe('Б');
   });
 
+  it('a <pre> written as raw HTML gets a <code> inside, so that it scrolls like any other block of code', () => {
+    const { element } = render('<pre>first line\n  second <b>line</b></pre>');
+    const code = element.querySelector('pre > code');
+    expect(code?.textContent).toBe('first line\n  second line'); // the markup inside is not kept (the sanitizer allows no <b> in code), the text is
+    expect(element.querySelectorAll('pre > code')).toHaveLength(1);
+    expect(element.querySelector('pre > code > .code-copy, pre > .code-copy')).not.toBeNull(); // and it has the Copy button
+  });
+
   it('renders fenced code blocks with their language, preserving whitespace and special characters', () => {
     const { element } = render('```c\nif (a < b && c > d) {\n    return 1;\n}\n```');
     const code = element.querySelector('pre > code');

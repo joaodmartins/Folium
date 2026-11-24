@@ -1431,6 +1431,13 @@ h1:focus {
   overflow-x: auto;
   overflow-y: hidden;
   break-inside: avoid;
+  /* never taller than a page (or than the room after the headings above it, see keep-with-next.ts) */
+  max-height: calc(var(--block-max, var(--page-h, 70vh)) - 2em);
+  overscroll-behavior: contain;
+}
+
+:is(.prose, .flip__copy) .katex-display[data-scroll-y] {
+  overflow-y: auto;
 }
 
 :is(.prose, .flip__copy) .katex-display[tabindex]:focus-visible {

@@ -63,6 +63,15 @@ function tidy(root: HTMLElement, headings: Heading[], bookTitle: string) {
   const firstVisible = [...root.children].find((child) => !child.hasAttribute('hidden'));
   firstVisible?.classList.add('first-block');
 
+  // A <pre> written as raw HTML has no <code> inside. Code scrolls in the <code> (see app.css), so give it one:
+  // otherwise its long lines and many lines would be cut off instead of scrolling.
+  for (const pre of root.querySelectorAll('pre')) {
+    if (pre.querySelector(':scope > code')) continue;
+    const code = document.createElement('code');
+    code.append(...pre.childNodes);
+    pre.append(code);
+  }
+
   // Wide or tall tables scroll inside a wrapper. (Tables and code blocks that scroll become focusable
   // once the page size is known, see markScrollableTables and markScrollableCode.)
   for (const table of root.querySelectorAll('table')) {
