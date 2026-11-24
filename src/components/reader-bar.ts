@@ -9,6 +9,10 @@ export interface ReaderBar {
   themes: ThemeSwitcher;
   prevButton: HTMLButtonElement;
   nextButton: HTMLButtonElement;
+  /** The "Contents" button: hidden until the book has a table of contents to show. */
+  tocButton: HTMLButtonElement;
+  showToc(available: boolean): void;
+  setTocOpen(open: boolean): void;
   /** Shows the pages on screen and enables/disables the previous/next buttons. */
   update(state: PageView): void;
 }
@@ -23,6 +27,8 @@ export interface ReaderBarOptions {
   onGoToPage(page: number): void;
   onPrev(): void;
   onNext(): void;
+  /** The Contents button was pressed. */
+  onToc?(): void;
 }
 
 function arrowButton(kind: 'prev' | 'next', label: string, glyph: string): HTMLButtonElement {
@@ -52,10 +58,25 @@ export function renderReaderBar(options: ReaderBarOptions): ReaderBar {
   const status = el('span', { class: 'sr-only', role: 'status' });
   const themes = renderThemeSwitcher(options.theme, options.onTheme);
 
+  const tocButton = el(
+    'button',
+    {
+      type: 'button',
+      class: 'bar-button bar-button--toc',
+      'data-testid': 'toc-toggle',
+      'aria-label': 'Table of contents',
+      'aria-haspopup': 'dialog',
+      'aria-expanded': 'false',
+      hidden: '',
+    },
+    el('span', { 'aria-hidden': 'true', class: 'toc-icon' }),
+  );
+  tocButton.addEventListener('click', () => options.onToc?.());
+
   const root = el(
     'header',
     { class: 'reader-bar' },
-    back,
+    el('div', { class: 'bar-left' }, back, tocButton),
     el('div', { class: 'pager-group' }, prevButton, indicator.root, nextButton, status),
     themes.root,
   );
@@ -66,6 +87,13 @@ export function renderReaderBar(options: ReaderBarOptions): ReaderBar {
     themes,
     prevButton,
     nextButton,
+    tocButton,
+    showToc(available) {
+      tocButton.hidden = !available;
+    },
+    setTocOpen(open) {
+      tocButton.setAttribute('aria-expanded', String(open));
+    },
     update(state) {
       indicator.update(state);
       const last = Math.min(state.page + state.pagesPerView, state.pageCount);

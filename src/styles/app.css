@@ -447,6 +447,7 @@ h1:focus {
 
 /* Reading takes the whole screen: a slim bar, and the book on its desk. */
 .reader-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -1283,5 +1284,203 @@ pre:hover > .code-copy,
 @media (hover: none) {
   .code-copy {
     opacity: 0.8;
+  }
+}
+
+
+/* ---------- Table of contents ---------- */
+
+.bar-left {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  min-width: 0;
+}
+
+.toc-icon {
+  display: block;
+  width: 1.1rem;
+  height: 0.8rem;
+  margin: auto;
+  background:
+    linear-gradient(currentColor 0 0) 0 0 / 100% 2px no-repeat,
+    linear-gradient(currentColor 0 0) 0 50% / 70% 2px no-repeat,
+    linear-gradient(currentColor 0 0) 0 100% / 100% 2px no-repeat;
+}
+
+.bar-button[aria-expanded='true'] {
+  background: rgb(var(--spine) / 0.16);
+}
+
+/* A panel over the book, below the bar: it covers part of the desk and never changes the size of the book. */
+.toc {
+  position: absolute;
+  inset: 3.1rem 0 0 0;
+  z-index: 20;
+  display: flex;
+}
+
+.toc[hidden] {
+  display: none;
+}
+
+.toc__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--spine) / 0.35);
+}
+
+.toc__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(23rem, 88vw);
+  max-height: 100%;
+  background: var(--page-bg);
+  color: var(--text);
+  border-right: 1px solid var(--border);
+  box-shadow: 0 10px 40px rgb(var(--spine) / 0.45);
+}
+
+.toc__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.5rem 0.5rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.toc__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+}
+
+.toc__close {
+  width: 2.75rem;
+  height: 2.75rem;
+  font: inherit;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.toc__nav {
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem 0.4rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.toc__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc__list .toc__list {
+  margin-left: 0.9rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--border);
+}
+
+.toc__item {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.toc__item[data-level='1'] {
+  font-family: var(--font-serif);
+  font-weight: 700;
+}
+
+.toc__item[data-level='3'] {
+  font-size: 0.9rem; /* smaller, not paler: it must stay readable in every theme */
+}
+
+.toc__item:hover {
+  background: rgb(var(--spine) / 0.1);
+}
+
+.toc__item:active {
+  background: rgb(var(--spine) / 0.2);
+}
+
+.toc__item:focus-visible,
+.toc__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The heading of the pages on screen. */
+.toc__item[aria-current='location'] {
+  color: var(--accent);
+  font-weight: 700;
+  background: rgb(var(--spine) / 0.08);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.toc__item .katex {
+  font-size: 1em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toc:not([hidden]) .toc__panel {
+    animation: toc-in 0.18s ease-out both;
+  }
+
+  .toc:not([hidden]) .toc__backdrop {
+    animation: toc-fade 0.18s ease-out both;
+  }
+
+  @keyframes toc-in {
+    from {
+      opacity: 0;
+      transform: translateX(-1.5rem);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes toc-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@media (max-width: 36rem) {
+  .toc__panel {
+    width: 100%;
+    border-right: 0;
+  }
+
+  .bar-left .bar-link {
+    padding-inline: 0.5rem;
   }
 }

@@ -24,12 +24,14 @@ The project is intentionally simple: no backend, no database, no authentication,
 - Themes: Light, Dark and Sepia, chosen with three swatches in the reading bar and remembered in `localStorage`. They only change colours, never the layout.
 - Mathematics: `$E = mc^2$` inline and `$$ … $$` as a centred block, rendered by KaTeX (installed locally, nothing from a CDN). A formula wider than the page scrolls inside itself; an invalid formula is shown as the TeX that was written, and the book still opens. In a table cell, write `\|` for a pipe inside a formula.
 - Code: fenced blocks are syntax-highlighted by highlight.js (C, C++, Python, Java, JavaScript, TypeScript, HTML/XML, CSS, JSON, Bash/shell, SQL, YAML, Markdown; other languages, or none, are shown as plain text). Long lines wrap. A discreet "Copy" button copies the original code (not the highlighting).
+- Table of contents: with `showTableOfContents: true` (in the frontmatter or a `_folder.json`/global default) and at least one heading, a Contents button in the reading bar opens a panel over the book with the H1–H3 headings, nested, the heading of the pages on screen marked, formulas rendered. Choosing a heading goes to its page (with a page turn when it is on the next or previous view) and closes the panel; Escape, the close button and a click outside close it too. It never changes the size of the book.
+- Reading progress: Folium remembers where you stopped in each book (`localStorage`, one entry per book: the nearest heading, how far into its section, and the page as a fallback). Opening a book again continues there, even on another screen size, because the heading is used rather than the page. A heading in the link (`#/read/<id>#heading`) wins over the saved position. Nothing is synced between devices.
 - Page breaks: `<!-- pagebreak -->` on its own line starts a new page; the book's `chapterBreak` (`h1`, `h2` or `none`, default `h1`) makes headings of that level (and above) start a new page.
 - Covers: a book/category `cover` image from `Library/` is shown when it exists, otherwise a generated cover.
 - A Vite plugin (`tools/vite-plugin-folium/`) that scans `Library/` and exposes every book and category as the virtual module `virtual:folium-library` (the *manifest*). It reads YAML frontmatter, `_folder.json` and `folium.config.json`, skips drafts and hidden files, validates the metadata, and reloads the dev server when files in `Library/` change.
 - Two example Markdown books and example config files under `Library/`.
 
-What does **not** exist yet (planned for later phases): a table-of-contents UI, reading settings (font size, line height), and a saved reading position. The page number depends on the screen size and text size, so it is not the same on every device.
+What does **not** exist yet (planned for later phases): reading settings (font size, line height). The page number depends on the screen size and text size, so it is not the same on every device.
 
 ## Technologies
 
@@ -70,8 +72,9 @@ src/                     Application code
   app.ts, main.ts        Mounts the app and renders the current route
   views/                 Library (home), category, book cover, reader and not-found views
   components/            Breadcrumbs, cards, book cover, the open book frame, reader bar, page indicator, theme switcher
-  state/                 Theme preference (localStorage)
+  state/                 Theme preference and reading progress (localStorage)
   reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, page breaks, source loader
+  reader/toc.ts          The table of contents of a rendered book
   reader/layout.ts       Size of the open book (one page or two) for the space available
   reader/paginator/      The Paginator interface and its CSS-columns implementation
   reader/math.ts, highlight.ts, code-blocks.ts   KaTeX formulas, syntax highlighting, the Copy button

@@ -1,6 +1,7 @@
 import type { Book } from '../../tools/vite-plugin-folium/types';
 import { renderBookFrame } from '../components/book-frame';
 import { renderReaderBar } from '../components/reader-bar';
+import { renderTocPanel, type TocPanel } from '../components/toc-panel';
 import { el } from '../dom';
 import { findAnchorTarget } from '../reader/anchors';
 import { createPageTurner, type PageTurner } from '../reader/flip/turner';
@@ -9,14 +10,19 @@ import { computeBookLayout, GUTTER, sameLayout, type BookLayout } from '../reade
 import { columnsPaginator } from '../reader/paginator/columns';
 import type { Paginator } from '../reader/paginator/types';
 import { loadFromManifest } from '../reader/source';
+import { buildToc, type TocEntry } from '../reader/toc';
 import { categoryHash } from '../router';
+import { describePosition, headingAt, loadProgress, resolveRestore, saveProgress, type HeadingStart } from '../state/progress';
 import { currentTheme, setTheme } from '../state/theme';
 import type { Page, ViewContext } from './types';
 
 /**
- * The open book: a slim bar (back, page indicator, theme) above the book itself, which takes all
- * the space left. The book's Markdown is loaded on demand; the cover, title and details live in
- * the cover view, not here.
+ * The open book: a slim bar (back, contents, page indicator, theme) above the book itself, which
+ * takes all the space left. The book's Markdown is loaded on demand; the cover, title and details
+ * live in the cover view, not here.
+ *
+ * It also remembers where the reader is (see state/progress.ts) and offers the table of contents
+ * (a panel over the book, built from the book's headings).
  */
 export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string): Page {
   const { library, assetUrl } = ctx;
@@ -29,6 +35,14 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
   let attempt = 0; // only the latest attempt may touch the page (retries, slow loads, leaving the page)
   let removeKeys: (() => void) | undefined;
   let observer: ResizeObserver | undefined;
+  let panel: TocPanel | undefined;
+  /** Every heading of the book and the page it starts on (in reading order): measured after each layout. */
+  let headings: { id: string; element: HTMLElement }[] = [];
+  let starts: HeadingStart[] = [];
+  let tocIds = new Set<string>();
+  /** The entry the reader just chose (or an anchor): it stays the active one until the page changes. */
+  let pinned: { id: string; page: number } | null = null;
+  let remembering = false; // progress is only saved once the book is open and at its starting place
 
   // ---- navigation: everything that moves through the book goes through here ----------------
 
@@ -44,6 +58,45 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
       turner?.finish();
       paginator?.goToElement(element);
     },
+    /** From the table of contents: a page turn when the heading is on the next/previous view, else a jump. */
+    goToHeading(element: HTMLElement) {
+      if (!paginator) return;
+      const view = paginator.pagesPerView;
+      const target = paginator.pageOf(element);
+      const targetStart = target - (target % view);
+      if (targetStart === paginator.page + view) nav.next();
+      else if (targetStart === paginator.page - view) nav.prev();
+      else nav.goToElement(element);
+      pinned = { id: element.id, page: paginator.page };
+    },
+  };
+
+  // ---- where the reader is: active heading and saved progress --------------------------------
+
+  const measureHeadings = () => {
+    if (!paginator) return;
+    const created = paginator;
+    starts = headings.map(({ id, element: heading }) => ({ id, startPage: created.pageOf(heading) }));
+  };
+
+  /** The entry of the table of contents for the pages on screen. */
+  const activeId = (): string | null => {
+    if (!paginator) return null;
+    if (pinned && pinned.page === paginator.page) return pinned.id;
+    return headingAt(starts.filter((start) => tocIds.has(start.id)), paginator.page)?.id ?? null;
+  };
+
+  const saveProgressNow = () => {
+    if (!remembering || !paginator) return;
+    if (paginator.page === 0 && loadProgress(book.id) === null) return; // a book that was only opened leaves no trace
+    saveProgress(book.id, { ...describePosition(starts, paginator.page, paginator.pageCount), savedAt: Date.now() });
+  };
+
+  const openPanel = () => {
+    if (!panel) return;
+    bar.indicator.cancelEdit();
+    turner?.finish();
+    panel.open(activeId());
   };
 
   const bar = renderReaderBar({
@@ -57,6 +110,7 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
     onGoToPage: (page) => nav.goToPage(page),
     onPrev: () => void nav.prev(),
     onNext: () => void nav.next(),
+    onToc: () => (panel?.isOpen ? panel.close() : openPanel()),
   });
 
   const stage = el('section', {
@@ -75,6 +129,15 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
   );
 
   const release = () => {
+    panel?.destroy();
+    panel?.root.remove();
+    panel = undefined;
+    bar.showToc(false);
+    stage.removeAttribute('inert');
+    headings = [];
+    starts = [];
+    pinned = null;
+    remembering = false;
     observer?.disconnect();
     observer = undefined;
     turner?.destroy();
@@ -89,8 +152,10 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
   const goToAnchor = (target: string | undefined) => {
     if (!paginator || !rendered) return;
     const heading = target ? findAnchorTarget(rendered, target) : null;
-    if (heading) nav.goToElement(heading);
-    else if (!target) nav.goToPage(0);
+    if (heading) {
+      nav.goToElement(heading);
+      if (heading.id) pinned = { id: heading.id, page: paginator.page };
+    } else if (!target) nav.goToPage(0);
   };
 
   // ---- loading, errors -----------------------------------------------------------------------
@@ -159,7 +224,12 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         pagesPerView: () => layout.pages,
         gap: GUTTER,
         animate: false, // the reader draws its own page turns
-        onLayout: () => markScrollableFormulas(result.element),
+        onLayout: () => {
+          markScrollableFormulas(result.element);
+          measureHeadings(); // the pages changed: so did the page each heading is on
+          panel?.setActive(activeId());
+          saveProgressNow();
+        },
       });
       if (mine !== attempt) return created.destroy(); // the user moved on while we were measuring
       paginator = created;
@@ -189,9 +259,39 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         observer.observe(stage);
       }
 
+      headings = result.headings.flatMap(({ id }) => {
+        const heading = result.element.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
+        return heading ? [{ id, element: heading }] : [];
+      });
+      measureHeadings();
+
+      // The table of contents, when the book asks for it (`showTableOfContents`) and has headings.
+      const toc: TocEntry[] = book.meta.showTableOfContents ? buildToc(result.element) : [];
+      tocIds = new Set(toc.map((entry) => entry.id));
+      if (toc.length > 0) {
+        panel = renderTocPanel({
+          entries: toc,
+          onSelect(entry) {
+            const heading = headings.find((h) => h.id === entry.id)?.element;
+            if (heading) nav.goToHeading(heading);
+          },
+          onToggle(open) {
+            bar.setTocOpen(open);
+            if (open) stage.setAttribute('inert', '');
+            else stage.removeAttribute('inert');
+          },
+        });
+        element.append(panel.root);
+        bar.showToc(true);
+      }
+
       const show = () => bar.update({ page: created.page, pagesPerView: created.pagesPerView, pageCount: created.pageCount });
       show();
-      created.onChange(show);
+      created.onChange(() => {
+        show();
+        panel?.setActive(activeId());
+        saveProgressNow();
+      });
 
       frame.root.style.visibility = '';
       stage.setAttribute('aria-busy', 'false');
@@ -203,8 +303,17 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         setTimeout(done, 1000);
       }
 
-      removeKeys = listenForArrowKeys(frame.root, bar, nav);
-      goToAnchor(currentAnchor);
+      removeKeys = listenForArrowKeys(frame.root, bar, nav, () => panel?.isOpen === true);
+
+      // Where to open: a heading in the link, else where the reader stopped last time, else the first page.
+      const linked = currentAnchor ? findAnchorTarget(result.element, currentAnchor) : null;
+      if (linked) goToAnchor(currentAnchor);
+      else {
+        const saved = resolveRestore(loadProgress(book.id), starts, created.pageCount);
+        if (saved > 0) created.goTo(saved);
+      }
+      remembering = true;
+      saveProgressNow();
     } catch (error) {
       if (mine === attempt) showError(error);
     }
@@ -231,11 +340,12 @@ function listenForArrowKeys(
   book: HTMLElement,
   bar: { indicator: { editing: boolean } },
   nav: { next(): boolean; prev(): boolean },
+  isBlocked: () => boolean = () => false,
 ): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-    if (!book.isConnected || bar.indicator.editing) return;
+    if (!book.isConnected || bar.indicator.editing || isBlocked()) return;
     const target = event.target;
     if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
     // A wide formula that has the focus scrolls with the arrow keys.

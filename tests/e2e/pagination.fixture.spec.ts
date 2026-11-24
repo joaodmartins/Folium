@@ -140,13 +140,15 @@ test.describe('a paginated book', () => {
     await expect(indicator(page)).toHaveText('1 / 1');
   });
 
-  test('when the book is opened again it starts on the first page', async ({ page }) => {
+  test('a book that was never opened starts on the first page, and when opened again it continues where it was left', async ({ page }) => {
     await openBook(page, LONG);
+    await expect(indicator(page)).toHaveText(/^1 \//); // never opened before
     await next(page).click();
     await next(page).click();
+    const where = await indicator(page).textContent();
     await page.goto('/#/');
     await page.goto(LONG);
-    await expect(indicator(page)).toHaveText(/^1 \//);
+    await expect(indicator(page)).toHaveText(where!); // (saved reading progress: see contents.fixture.spec.ts)
   });
 });
 
