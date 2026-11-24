@@ -37,7 +37,12 @@ export function saveTheme(theme: Theme, storage: Storage | null = storageOrNull(
 /** Themes only change colours (see tokens.css), so applying one never changes how a book is paginated. */
 export function applyTheme(theme: Theme, root: HTMLElement = document.documentElement): void {
   root.setAttribute('data-theme', theme);
+  // Tint the browser's own chrome (mobile address bar) to match the page.
+  root.ownerDocument.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme]);
 }
+
+/** Page background of each theme (`--bg` in tokens.css), for `<meta name="theme-color">`. */
+const THEME_COLORS: Record<Theme, string> = { light: '#f6f3ee', dark: '#16151a', sepia: '#efe4cd' };
 
 export function currentTheme(root: HTMLElement = document.documentElement): Theme {
   const value = root.getAttribute('data-theme');

@@ -162,7 +162,9 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
 
   const showLoading = () => {
     stage.setAttribute('aria-busy', 'true');
-    stage.replaceChildren(el('p', { class: 'reader__status', role: 'status' }, 'Loading book…'));
+    stage.replaceChildren(
+      el('p', { class: 'reader__status', role: 'status' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading book…'),
+    );
   };
 
   const showError = (error: unknown) => {
@@ -176,7 +178,12 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
         { class: 'reader__error', role: 'alert' },
         el('p', { class: 'reader__error-title' }, `We could not load “${book.title}”.`),
         el('p', { class: 'reader__error-detail' }, `Check your connection and try again. (${detail})`),
-        retry,
+        el(
+          'div',
+          { class: 'reader__error-actions' },
+          retry,
+          el('a', { class: 'button button--quiet', href: categoryHash(category) }, `Back to ${category.title === '' ? library.title : category.title}`),
+        ),
       ),
     );
   };
@@ -324,6 +331,7 @@ export function renderReaderView(ctx: ViewContext, book: Book, anchor?: string):
   return {
     title: `${book.title} · ${library.title}`,
     element,
+    fullscreen: true,
     onAnchorChange(next) {
       currentAnchor = next;
       goToAnchor(next); // while loading: applied once the pages are ready

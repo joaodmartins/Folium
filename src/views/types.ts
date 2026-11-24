@@ -17,6 +17,8 @@ export interface ViewContext {
 export interface Page {
   title: string;
   element: HTMLElement;
+  /** The reader fills the screen with its own controls, so it is shown without the site bar. */
+  fullscreen?: boolean;
   /** Called when only the `#anchor` of the same book's route changed (no re-render). */
   onAnchorChange?: (anchor: string | undefined) => void;
   /** Called when the page is replaced: release listeners and observers. */

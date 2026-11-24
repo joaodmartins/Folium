@@ -2,7 +2,8 @@ import { resolveAsset, type AssetResolver } from './assets';
 import type { Library } from './library';
 import type { PaginatorFactory } from './reader/paginator/types';
 import { createSourceLoader, loadFromManifest, type SourceLoader } from './reader/source';
-import { parseHash, resolveRoute, type ResolvedRoute } from './router';
+import { hashFor, parseHash, resolveRoute, type ResolvedRoute } from './router';
+import { renderSiteBar } from './components/site-bar';
 import { renderBookView } from './views/book-view';
 import { renderReaderView } from './views/reader-view';
 import { renderCategoryView } from './views/category-view';
@@ -58,6 +59,7 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
   const loadSource = options.loadSource ?? createSourceLoader(loadFromManifest);
 
   let current: { bookId?: string; reading: boolean; page: Page } | undefined;
+  let first = true;
 
   const render = () => {
     const route = resolveRoute(parseHash(win.location.hash), library);
@@ -73,11 +75,18 @@ export function mountApp(container: HTMLElement, library: Library, options: AppO
     current?.page.destroy?.();
     const page = renderResolved(route, { library, assetUrl, loadSource, createPaginator: options.createPaginator });
     current = { bookId: 'book' in route ? route.book.id : undefined, reading, page };
-    container.replaceChildren(page.element);
+    if (page.fullscreen) {
+      container.replaceChildren(page.element);
+    } else {
+      const brand = route.name === 'home' ? undefined : { title: library.title, href: hashFor({ name: 'home' }) };
+      container.replaceChildren(renderSiteBar({ brand }), page.element);
+    }
     win.document.title = page.title;
     win.scrollTo?.(0, 0);
     // Move focus to the new page's heading so keyboard/screen-reader users notice the change.
-    page.element.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+    // Not on the first render: a fresh page load starts at the top, where the skip link is the first Tab stop.
+    if (!first) page.element.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+    first = false;
   };
 
   win.addEventListener('hashchange', render);

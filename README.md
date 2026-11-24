@@ -21,7 +21,7 @@ The project is intentionally simple: no backend, no database, no authentication,
 - A cover page for every book: opening a book shows its cover (the `cover` image, or a printed cover made from the title and author), with the title, author, description, category and a "Start reading" button. The text is only loaded when you start reading.
 - The open book: reading shows a slim bar (back, previous / page number / next, theme) and the book on a desk, using all the space. Wide screens show two pages side by side with a spine; narrow ones (phones, a tablet held upright) show one page. Pages turn with a 3D page-turn animation (a plain quick fade with `prefers-reduced-motion`). Pages are numbered individually (`1–2 / 500`, the last odd page alone); the current number is a button: click it, type a page, press Enter.
 - Pages are CSS columns (one column = one page): the browser breaks lines and pages, and Folium measures the result, waits for fonts and images, and keeps the reader at the same place in the text when the window is resized or the device is rotated. A heading link (`#/book/<id>#heading`, `#/read/<id>#heading`) opens the view that contains it.
-- Themes: Light, Dark and Sepia, chosen with three swatches in the reading bar and remembered in `localStorage`. They only change colours, never the layout.
+- Themes: Light, Dark and Sepia, chosen with three swatches (in the reading bar and in the slim bar at the top of every other page) and remembered in `localStorage`. They only change colours, never the layout.
 - Mathematics: `$E = mc^2$` inline and `$$ … $$` as a centred block, rendered by KaTeX (installed locally, nothing from a CDN). A formula wider than the page scrolls inside itself; an invalid formula is shown as the TeX that was written, and the book still opens. In a table cell, write `\|` for a pipe inside a formula.
 - Code: fenced blocks are syntax-highlighted by highlight.js (C, C++, Python, Java, JavaScript, TypeScript, HTML/XML, CSS, JSON, Bash/shell, SQL, YAML, Markdown; other languages, or none, are shown as plain text). Long lines wrap. A discreet "Copy" button copies the original code (not the highlighting).
 - Table of contents: with `showTableOfContents: true` (in the frontmatter or a `_folder.json`/global default) and at least one heading, a Contents button in the reading bar opens a panel over the book with the H1–H3 headings, nested, the heading of the pages on screen marked, formulas rendered. Choosing a heading goes to its page (with a page turn when it is on the next or previous view) and closes the panel; Escape, the close button and a click outside close it too. It never changes the size of the book.
@@ -71,7 +71,7 @@ src/                     Application code
   router.ts, library.ts  Hash routes and lookups over the manifest
   app.ts, main.ts        Mounts the app and renders the current route
   views/                 Library (home), category, book cover, reader and not-found views
-  components/            Breadcrumbs, cards, book cover, the open book frame, reader bar, page indicator, theme switcher
+  components/            Site bar, breadcrumbs, cards, book cover, the open book frame, reader bar, page indicator, theme switcher
   state/                 Theme preference and reading progress (localStorage)
   reader/                Markdown pipeline: markdown, sanitize, resolve (links/images), headings, page breaks, source loader
   reader/toc.ts          The table of contents of a rendered book
